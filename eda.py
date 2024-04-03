@@ -9,8 +9,10 @@ from sklearn.decomposition import PCA
 import seaborn as sns
 
 plt.style.use('ggplot')
-
-data = pd.read_csv('/Users/mchlsdrv/Desktop/QoE/data/Zoom/Encrypted-Zoom-traffic-dataset-main/Dataset.csv')
+DATA_ROOT = pathlib.Path('/Users/mchlsdrv/Desktop/QoE/data/Zoom/Encrypted-Zoom-traffic-dataset-main')
+data = pd.read_csv(DATA_ROOT / 'Dataset.csv')
+data = data.rename(columns={"Latancy": 'Latency'})
+data.to_csv(DATA_ROOT / 'data_new.csv')
 data.head()
 data = data.loc[~data.isna().loc[:, 'Bandwidth']]
 data.head()
@@ -18,6 +20,26 @@ data_train = data.drop(columns=['NIQE'])
 data_train.head()
 data_trgt = data.loc[:, 'NIQE']
 data_trgt
+
+# - Get train / test split
+TEST_PROP = 0.1
+n_data = len(data)
+n_test = int(n_data * TEST_PROP)
+n_test
+data_idxs = np.arange(n_data)
+test_idxs = np.random.choice(data_idxs, n_test, replace=True)
+test_idxs
+test_data = data.iloc[test_idxs].reset_index(drop=True)
+test_data
+test_data.to_csv(DATA_ROOT / 'test_data.csv')
+test_data = pd.read_csv(DATA_ROOT / 'test_data.csv')
+test_data
+
+train_data = data.iloc[np.setdiff1d(data_idxs, test_idxs)].reset_index(drop=True)
+train_data
+train_data.to_csv(DATA_ROOT / 'train_data.csv')
+train_data = pd.read_csv(DATA_ROOT / 'train_data.csv')
+train_data
 # EDA
 
 # - Bandwidth
