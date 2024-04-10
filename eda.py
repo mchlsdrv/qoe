@@ -9,10 +9,10 @@ from sklearn.decomposition import PCA
 import seaborn as sns
 
 plt.style.use('ggplot')
-DATA_ROOT = pathlib.Path('/Users/mchlsdrv/Desktop/QoE/data/Zoom/Encrypted-Zoom-traffic-dataset-main')
-data = pd.read_csv(DATA_ROOT / 'Dataset.csv')
+DATA_ROOT = pathlib.Path('/data/zoom/encrypted_traffic')
+data = pd.read_csv(DATA_ROOT / 'data.csv')
 data = data.rename(columns={"Latancy": 'Latency'})
-data.to_csv(DATA_ROOT / 'data_new.csv')
+data.to_csv(DATA_ROOT / 'data_no_nan.csv')
 data.head()
 data = data.loc[~data.isna().loc[:, 'Bandwidth']]
 data.head()
