@@ -7,8 +7,8 @@ DATA_ROOT = pathlib.Path('/Users/mchlsdrv/Desktop/QoE/data/zoom/encrypted_traffi
 SAVE_DIR = pathlib.Path('/Users/mchlsdrv/Desktop/QoE/data/zoom/encrypted_traffic/ablation/outputs')
 os.makedirs(SAVE_DIR, exist_ok=True)
 
-EPOCHS = [50]
-BATCHES = [16]
+EPOCHS = [1, 2, 10, 25, 50]
+BATCHES = [4, 8, 16, 32, 64]
 LAYERS = [4, 8, 16, 32, 64]
 UNITS = [4, 8, 16, 32, 64]
 FEATURES = ['Bandwidth', 'pps', 'avg time between packets', 'packets length']
