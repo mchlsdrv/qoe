@@ -9,9 +9,11 @@ import tqdm
 from torch.utils.data import Dataset
 import matplotlib
 import matplotlib.pyplot as plt
+
 matplotlib.use('Agg')
 plt.style.use('ggplot')
 
+VALIDATION_PROPORTION = 0.2
 TS = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 DATA_ROOT = pathlib.Path('/Users/mchlsdrv/Desktop/QoE/data/zoom/encrypted_traffic/test')
 SAVE_DIR = pathlib.Path('/Users/mchlsdrv/Desktop/QoE/data/zoom/encrypted_traffic/test/output')
@@ -64,28 +66,74 @@ class QoEModel(torch.nn.Module):
         self.n_layers = n_layers
         self.n_units = n_units
         self.model = None
-        self.layers = []
+        self.layers = torch.nn.ModuleList()
         self._build()
 
+    def _add_layer(self, n_in, n_out, activation):
+        self.layers.append(
+            torch.nn.Sequential(
+                torch.nn.Linear(n_in, n_out),
+                torch.nn.BatchNorm1d(n_out),
+                activation()
+            )
+        )
+
     def _build(self):
-        self.layers = [
-            torch.nn.Linear(self.n_features, self.n_units),
-            torch.nn.BatchNorm1d(self.n_units),
-            torch.nn.SiLU()
-        ]
+        # - Add the input layer
+        self._add_layer(n_in=self.n_features, n_out=self.n_units, activation=torch.nn.SiLU)
 
         for lyr in range(self.n_layers):
-            self.layers.append(torch.nn.Linear(self.n_units, self.n_units))
-            self.layers.append(torch.nn.BatchNorm1d(self.n_units))
-            self.layers.append(torch.nn.SiLU())
+            self._add_layer(n_in=self.n_units, n_out=self.n_units, activation=torch.nn.SiLU)
 
-        self.layers.append(torch.nn.Linear(self.n_units, self.n_labels))
-        self.layers.append(torch.nn.ReLU())
+        self._add_layer(n_in=self.n_units, n_out=self.n_labels, activation=torch.nn.Tanh)
 
-        self.model = torch.nn.Sequential(*self.layers)
+    def forward(self, x, p_drop: float = 0.0):
+        tmp_in = x
+        for lyr in self.layers:
 
-    def forward(self, x):
-        return self.model(x)
+            x = lyr(x)
+
+            # - Skip connection
+            if tmp_in.shape == x.shape:
+                x = x + tmp_in
+
+            tmp_in = x
+
+        x = torch.nn.functional.dropout(x, p=p_drop, training=self.training)
+
+        return x
+
+
+# class QoEModel(torch.nn.Module):
+#     def __init__(self, n_features, n_labels, n_layers, n_units):
+#         super().__init__()
+#         self.n_features = n_features
+#         self.n_labels = n_labels
+#         self.n_layers = n_layers
+#         self.n_units = n_units
+#         self.model = None
+#         self.layers = []
+#         self._build()
+#
+#     def _build(self):
+#         self.layers = [
+#             torch.nn.Linear(self.n_features, self.n_units),
+#             torch.nn.BatchNorm1d(self.n_units),
+#             torch.nn.SiLU()
+#         ]
+#
+#         for lyr in range(self.n_layers):
+#             self.layers.append(torch.nn.Linear(self.n_units, self.n_units))
+#             self.layers.append(torch.nn.BatchNorm1d(self.n_units))
+#             self.layers.append(torch.nn.SiLU())
+#
+#         self.layers.append(torch.nn.Linear(self.n_units, self.n_labels))
+#         self.layers.append(torch.nn.ReLU())
+#
+#         self.model = torch.nn.Sequential(*self.layers)
+#
+#     def forward(self, x):
+#         return self.model(x)
 
 
 def get_train_val_split(data: pd.DataFrame, validation_proportion: float = 0.2):
@@ -105,22 +153,33 @@ def get_train_val_split(data: pd.DataFrame, validation_proportion: float = 0.2):
 DEVICE = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
 
-def run_train(model: torch.nn.Module, epochs: int, train_data_loader: torch.utils.data.DataLoader, val_data_loader: torch.utils.data.DataLoader, optimizer: torch.optim, loss_function: torch.nn, device: torch.device = torch.device('cpu')):
+def run_train(model: torch.nn.Module, epochs: int, train_data_loader: torch.utils.data.DataLoader, val_data_loader: torch.utils.data.DataLoader,
+              loss_function: torch.nn, optimizer: torch.optim, lr_reduce_frequency: int, lr_reduce_factor: float = 1.0, dropout_epoch_start: int = 20, p_dropout_init: float = 0.1, device: torch.device = torch.device('cpu')):
     train_losses = np.array([])
     val_losses = np.array([])
     for epch in range(epochs):
+        p_drop = p_dropout_init * (epch // dropout_epoch_start)
         print(f'Epoch: {epch}/{epochs} ({100 * epch / epochs:.2f}% done)')
+        print(f'\t ** INFO ** p_drop = {p_drop:.4f}')
         btch_train_losses = np.array([])
         btch_pbar = tqdm.tqdm(train_data_loader)
         for (X, Y) in btch_pbar:
             X = X.to(device)
-            results = model(X)
+            results = model(X, p_drop=p_drop)
             loss = loss_function(results, Y)
 
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
             btch_train_losses = np.append(btch_train_losses, loss.item())
+
+        # - Reduce learning rate every
+        if epch > 0 and epch % lr_reduce_frequency == 0:
+            old_lr = optimizer.param_groups[0]['lr']
+            new_lr = old_lr * lr_reduce_factor
+            optimizer.param_groups[0]['lr'] = new_lr
+            print(f'\t ** INFO ** The learning rate was changed from {old_lr} -> {new_lr}')
+
         train_losses = np.append(train_losses, btch_train_losses.mean())
 
         btch_val_losses = np.array([])
@@ -224,7 +283,8 @@ def get_errors(results: pd.DataFrame, columns: list):
     return errors
 
 
-def run_ablation(data_root: pathlib.Path, features: list, labels: list, batch_size_numbers: list, epoch_numbers: list, layer_numbers: list, unit_numbers: list, root_save_dir: pathlib.Path):
+def run_ablation(data_root: pathlib.Path, features: list, labels: list, batch_size_numbers: list, epoch_numbers: list, layer_numbers: list, unit_numbers: list, loss_functions: list, optimizers: list, initial_learning_rates: list,
+                 root_save_dir: pathlib.Path):
     ablation_root_save_dir = root_save_dir / f'ablation_{TS}'
     os.makedirs(ablation_root_save_dir)
 
@@ -233,13 +293,41 @@ def run_ablation(data_root: pathlib.Path, features: list, labels: list, batch_si
 
     # - Will hold the metadata for all experiments
     test_metadata = pd.DataFrame()
-
     for root, data_folders, _ in os.walk(data_root):
         root = pathlib.Path(root)
 
         # - Filter irrelevant data folders
         data_folders = [fldr for fldr in data_folders if fldr.split('_')[0] == 'test']
 
+        # - Total experiments
+        cv_folds = len(data_folders)
+        n_batch_sizes = len(batch_size_numbers)
+        n_epoch_numbers = len(epoch_numbers)
+        n_layer_numbers = len(layer_numbers)
+        n_unit_numbers = len(unit_numbers)
+        n_loss_funcs = len(loss_functions)
+        n_optimizers = len(optimizers)
+        n_init_lrs = len(initial_learning_rates)
+        total_exp = cv_folds * n_batch_sizes * n_epoch_numbers * n_layer_numbers * n_unit_numbers * n_loss_funcs * n_optimizers * n_init_lrs
+        print(f'''
+=================================================================================================================================================================================
+= ***************************************************************************************************************************************************************************** =
+=================================================================================================================================================================================
+        > Total Number of experiments in ablation:
+            - CV folds: {cv_folds} 
+            - Batch sizes: {n_batch_sizes}
+            - Epoch numbers: {n_epoch_numbers}
+            - Layer numbers: {n_layer_numbers}
+            - Unit numbers: {n_unit_numbers}
+            - Loss functions: {n_loss_funcs}
+            - Optimizers: {n_optimizers}
+            - Initial learning rates: {n_init_lrs}
+            => N = {cv_folds} x {n_batch_sizes} x {n_epoch_numbers} x {n_layer_numbers} x {n_unit_numbers} x {n_loss_funcs} x {n_optimizers} x {n_init_lrs} = {total_exp}
+=================================================================================================================================================================================
+= ***************************************************************************************************************************************************************************** =
+=================================================================================================================================================================================
+        ''')
+        exp_idx = 0
         for fldr_idx, data_folder in enumerate(data_folders):
             data_name = data_folder
             print(f'\t - Data folders: {data_folder} - {fldr_idx + 1}/{len(data_folders)} ({100 * (fldr_idx + 1) / len(data_folders):.2f}% done)')
@@ -265,128 +353,156 @@ def run_ablation(data_root: pathlib.Path, features: list, labels: list, batch_si
                             print('******************************************************************************************')
                             print(f'\t - Units number: {n_units} - {units_idx + 1}/{len(unit_numbers)} ({100 * (units_idx + 1) / len(unit_numbers):.2f}% done)')
                             print('******************************************************************************************')
+                            for loss_func_idx, loss_func in enumerate(loss_functions):
+                                print('******************************************************************************************')
+                                print(f'\t - Loss function: {loss_func} - {loss_func_idx + 1}/{len(loss_functions)} ({100 * (loss_func_idx + 1) / len(loss_functions):.2f}% done)')
+                                print('******************************************************************************************')
+                                for opt_idx, opt in enumerate(optimizers):
+                                    print('******************************************************************************************')
+                                    print(f'\t - Optimizer: {opt} - {opt_idx + 1}/{len(optimizers)} ({100 * (opt_idx + 1) / len(optimizers):.2f}% done)')
+                                    print('******************************************************************************************')
+                                    for init_lr_idx, init_lr in enumerate(initial_learning_rates):
+                                        print('******************************************************************************************')
+                                        print(f'\t - Initial learning rate: {init_lr} - {init_lr_idx + 1}/{len(initial_learning_rates)} ({100 * (init_lr_idx + 1) / len(initial_learning_rates):.2f}% done)')
+                                        print('******************************************************************************************')
 
-                            # - Split into train / val
-                            train_df, val_df = get_train_val_split(train_data_df, validation_proportion=0.2)
+                                        exp_idx += 1
 
-                            # - Dataset
-                            train_ds, val_ds = QoEDataset(data=train_df, features=features, labels=labels), QoEDataset(data=val_df, features=features, labels=labels)
+                                        # - Split into train / val
+                                        train_df, val_df = get_train_val_split(train_data_df, validation_proportion=VALIDATION_PROPORTION)
 
-                            # - Data Loader
-                            train_dl = torch.utils.data.DataLoader(
-                                train_ds,
-                                batch_size=n_batch_size,
-                                shuffle=True,
-                                pin_memory=True,
-                                num_workers=1,
-                                drop_last=True
-                            )
+                                        # - Dataset
+                                        train_ds, val_ds = QoEDataset(data=train_df, features=features, labels=labels), QoEDataset(data=val_df, features=features, labels=labels)
 
-                            val_batch_size = n_batch_size // 4
-                            val_dl = torch.utils.data.DataLoader(
-                                val_ds,
-                                batch_size=val_batch_size if val_batch_size > 0 else 1,
-                                shuffle=False,
-                                pin_memory=True,
-                                num_workers=1,
-                                drop_last=True
-                            )
+                                        # - Data Loader
+                                        train_dl = torch.utils.data.DataLoader(
+                                            train_ds,
+                                            batch_size=n_batch_size,
+                                            shuffle=True,
+                                            pin_memory=True,
+                                            num_workers=1,
+                                            drop_last=True
+                                        )
 
-                            # - Build the model
-                            mdl = QoEModel(n_features=len(features), n_labels=len(labels), n_layers=n_layers, n_units=n_units)
-                            mdl.to(DEVICE)
+                                        val_batch_size = n_batch_size // 4
+                                        val_dl = torch.utils.data.DataLoader(
+                                            val_ds,
+                                            batch_size=val_batch_size if val_batch_size > 0 else 1,
+                                            shuffle=False,
+                                            pin_memory=True,
+                                            num_workers=1,
+                                            drop_last=True
+                                        )
 
-                            # - Optimizer
-                            optimizer = torch.optim.Adam(mdl.parameters())
+                                        # - Build the model
+                                        mdl = QoEModel(n_features=len(features), n_labels=len(labels), n_layers=n_layers, n_units=n_units)
+                                        mdl.to(DEVICE)
 
-                            # - Loss
-                            loss_func = torch.nn.MSELoss()
+                                        # - Train
+                                        # - Create the train directory
+                                        train_save_dir = data_folder / f'{n_layers}_layers_{n_units}_units_{n_epochs}_epochs_{TS}'
+                                        os.makedirs(train_save_dir, exist_ok=True)
 
-                            # - Train
-                            # - Create the train directory
-                            train_save_dir = data_folder / f'{n_layers}_layers_{n_units}_units_{n_epochs}_epochs_{TS}'
-                            os.makedirs(train_save_dir)
+                                        # - Train the model
+                                        train_losses, val_losses = run_train(
+                                            model=mdl,
+                                            epochs=n_epochs,
+                                            train_data_loader=train_dl,
+                                            val_data_loader=val_dl,
+                                            loss_function=loss_func(),
+                                            optimizer=opt(mdl.parameters(), lr=init_lr),
+                                            lr_reduce_frequency=LR_REDUCE_FREQUENCY,
+                                            lr_reduce_factor=LR_REDUCE_FACTOR,
+                                            dropout_epoch_start=DROPOUT_EPOCH_START,
+                                            p_dropout_init=P_DROPOUT_INIT,
+                                            device=DEVICE
+                                        )
 
-                            # - Train the model
-                            train_losses, val_losses = run_train(
-                                model=mdl,
-                                epochs=n_epochs,
-                                train_data_loader=train_dl,
-                                val_data_loader=val_dl,
-                                optimizer=optimizer,
-                                loss_function=loss_func,
-                                device=DEVICE
-                            )
+                                        # - Save the train / val loss metadata
+                                        np.save(train_save_dir / 'train_losses.npy', train_losses)
+                                        np.save(train_save_dir / 'val_losses.npy', val_losses)
 
-                            # - Save the train / val loss metadata
-                            np.save(train_save_dir / 'train_losses.npy', train_losses)
-                            np.save(train_save_dir / 'val_losses.npy', val_losses)
+                                        # - Plot the train / val losses
+                                        plt.plot(train_losses, label='train')
+                                        plt.plot(val_losses, label='val')
+                                        plt.suptitle('Train / Validation Loss Plot')
+                                        plt.legend()
+                                        plt.savefig(train_save_dir / 'train_val_loss.png')
 
-                            # - Plot the train / val losses
-                            plt.plot(train_losses, label='train')
-                            plt.plot(val_losses, label='val')
-                            plt.suptitle('Train / Validation Loss Plot')
-                            plt.legend()
-                            plt.savefig(train_save_dir / 'train_val_loss.png')
+                                        # - Get the test dataloader
+                                        test_ds = QoEDataset(data=test_data_df, features=features, labels=labels)
+                                        test_dl = torch.utils.data.DataLoader(
+                                            test_ds,
+                                            batch_size=16,
+                                            shuffle=False,
+                                            pin_memory=True,
+                                            num_workers=1,
+                                            drop_last=True
+                                        )
 
-                            # - Get the test dataloader
-                            test_ds = QoEDataset(data=test_data_df, features=features, labels=labels)
-                            test_dl = torch.utils.data.DataLoader(
-                                test_ds,
-                                batch_size=16,
-                                shuffle=False,
-                                pin_memory=True,
-                                num_workers=1,
-                                drop_last=True
-                            )
+                                        # - Test the model
+                                        test_res = run_test(model=mdl, data_loader=test_dl, device=DEVICE)
+                                        test_res = unnormalize_results(results=test_res, data_set=test_ds, n_columns=len(test_res.columns) // 2)
 
-                            # - Test the model
-                            test_res = run_test(model=mdl, data_loader=test_dl, device=DEVICE)
-                            test_res = unnormalize_results(results=test_res, data_set=test_ds, n_columns=len(test_res.columns) // 2)
+                                        # - Save the test metadata
+                                        test_res.to_csv(train_save_dir / f'test_results_{n_layers}_layers_{n_units}_units_{n_epochs}_epochs.csv', index=False)
 
-                            # - Save the test metadata
-                            test_res.to_csv(train_save_dir / f'test_results_{n_layers}_layers_{n_units}_units_{n_epochs}_epochs.csv', index=False)
+                                        # - Get the test errors
+                                        test_errs = get_errors(results=test_res, columns=test_ds.labels.columns)
 
-                            # - Get the test errors
-                            test_errs = get_errors(results=test_res, columns=test_ds.labels.columns)
+                                        # - Save the test metadata
+                                        test_errs.to_csv(train_save_dir / f'test_errors_{n_layers}_layers_{n_units}_units_{n_epochs}_epochs.csv', index=False)
 
-                            # - Save the test metadata
-                            test_errs.to_csv(train_save_dir / f'test_errors_{n_layers}_layers_{n_units}_units_{n_epochs}_epochs.csv', index=False)
+                                        test_res = pd.concat([test_res, test_errs], axis=1)
 
-                            test_res = pd.concat([test_res, test_errs], axis=1)
+                                        # configuration_test_metadata = pd.concat([test_metadata, test_res], axis=1).reset_index(drop=True)
 
-                            # configuration_test_metadata = pd.concat([test_metadata, test_res], axis=1).reset_index(drop=True)
+                                        test_res.loc[:, 'dataset'] = data_name
+                                        test_res.loc[:, 'epochs'] = n_epochs
+                                        test_res.loc[:, 'batch_size'] = n_batch_size
+                                        test_res.loc[:, 'layers'] = n_layers
+                                        test_res.loc[:, 'units'] = n_units
+                                        test_res.loc[:, 'loss'] = loss_func
+                                        test_res.loc[:, 'optimizer'] = opt
+                                        test_res.loc[:, 'initial_lr'] = init_lr
+                                        test_res.loc[:, 'n_params'] = init_lr
+                                        test_res.loc[:, 'n_train_params'] = init_lr
 
-                            test_res.loc[:, 'dataset'] = data_name
-                            test_res.loc[:, 'epochs'] = n_epochs
-                            test_res.loc[:, 'batch_size'] = n_batch_size
-                            test_res.loc[:, 'layers'] = n_layers
-                            test_res.loc[:, 'units'] = n_units
+                                        test_res.to_csv(train_save_dir / 'test_metadata.csv', index=False)
 
-                            test_res.to_csv(train_save_dir / 'test_metadata.csv', index=False)
+                                        # - Add the configuration test metadata to the global test metadata
+                                        test_metadata = pd.concat([test_metadata, test_res]).reset_index(drop=True)
 
-                            # - Add the configuration test metadata to the global test metadata
-                            test_metadata = pd.concat([test_metadata, test_res]).reset_index(drop=True)
+                                        # - Save the final metadata and the results
+                                        test_metadata.to_csv(root_save_dir / 'test_metadata_tmp.csv', index=False)
 
-                            # - Get the results for the current configuration
-                            configuration_results = pd.DataFrame(
-                                dict(
-                                    dataset=data_name,
-                                    epochs=n_epochs,
-                                    batch_size=n_batch_size,
-                                    layers=n_layers,
-                                    units=n_units,
-                                ),
-                                index=pd.Index([0])
-                            )
+                                        # - Get the results for the current configuration
+                                        configuration_results = pd.DataFrame(
+                                            dict(
+                                                dataset=data_name,
+                                                epochs=n_epochs,
+                                                batch_size=n_batch_size,
+                                                layers=n_layers,
+                                                units=n_units,
+                                                loss=loss_func,
+                                                optimizer=opt,
+                                                initial_lr=init_lr,
+                                                n_params=0,
+                                                n_train_params=0
+                                            ),
+                                            index=pd.Index([0])
+                                        )
 
-                            # -- Add the errors to the configuration results
-                            configuration_results = pd.concat([configuration_results, pd.DataFrame(test_errs.mean()).T], axis=1)
+                                        # -- Add the errors to the configuration results
+                                        configuration_results = pd.concat([configuration_results, pd.DataFrame(test_errs.mean()).T], axis=1)
 
-                            # - Add the results for the current configuration to the final ablation results
-                            ablation_results = pd.concat([ablation_results, configuration_results], axis=0).reset_index(drop=True)
+                                        # - Add the results for the current configuration to the final ablation results
+                                        ablation_results = pd.concat([ablation_results, configuration_results], axis=0).reset_index(drop=True)
 
-                            print(f'''
+                                        # - Save the final metadata and the results
+                                        ablation_results.to_csv(root_save_dir / 'ablation_final_results_tmp.csv', index=False)
+
+                                        print(f'''
 ===========================================================
 =================== Final Stats ===========================
 ===========================================================
@@ -400,6 +516,9 @@ Configuration:
 Mean Errors:   
 
 {test_errs.mean()}
+
+Status:
+    - Experiment {exp_idx}/{total_exp} ({100 * exp_idx / total_exp:.2f}% done)
 ===========================================================
                                     ''')
 
@@ -412,11 +531,17 @@ Mean Errors:
 
 N_LAYERS = 64
 N_UNITS = 64
-EPOCHS = 1
-# EPOCHS = 100
+EPOCHS = 100
+OPTIMIZER = torch.optim.Adam
+INIT_LR = 0.01
+# INIT_LR = 0.0015
+LR_REDUCE_FREQUENCY = 20
+LR_REDUCE_FACTOR = 0.5
+# LR = 0.001
+DROPOUT_EPOCH_START = 20
+P_DROPOUT_INIT = 0.1
+LOSS_FUNCTION = torch.nn.MSELoss()
 TRAIN_BATCH_SIZE = 16
-# TRAIN_BATCH_SIZE = 32
-
 
 if __name__ == '__main__':
     # - Get the data
@@ -457,10 +582,10 @@ if __name__ == '__main__':
     mdl.to(DEVICE)
 
     # - Optimizer
-    optimizer = torch.optim.Adam(mdl.parameters())
+    optimizer = OPTIMIZER(mdl.parameters(), lr=INIT_LR)
 
     # - Loss
-    loss_func = torch.nn.MSELoss()
+    loss_func = LOSS_FUNCTION
 
     # - Train
     # - Create the train directory
@@ -471,8 +596,12 @@ if __name__ == '__main__':
         epochs=EPOCHS,
         train_data_loader=train_dl,
         val_data_loader=val_dl,
-        optimizer=optimizer,
         loss_function=loss_func,
+        optimizer=optimizer,
+        lr_reduce_frequency=LR_REDUCE_FREQUENCY,
+        lr_reduce_factor=LR_REDUCE_FACTOR,
+        dropout_epoch_start=DROPOUT_EPOCH_START,
+        p_dropout_init=P_DROPOUT_INIT,
         device=DEVICE
     )
 
@@ -495,7 +624,7 @@ if __name__ == '__main__':
     )
 
     test_res = run_test(model=mdl, data_loader=test_dl, device=DEVICE)
-    test_res = unnormalize_results(results=test_res, data_set=test_ds, n_columns=len(test_res.columns)//2)
+    test_res = unnormalize_results(results=test_res, data_set=test_ds, n_columns=len(test_res.columns) // 2)
     test_res.to_csv(train_save_dir / f'test_results_{N_LAYERS}_layers_{N_UNITS}_units_{EPOCHS}_epochs.csv')
 
     test_errs = get_errors(results=test_res, columns=test_ds.labels.columns)
@@ -513,6 +642,8 @@ Configuration:
     > {N_LAYERS} layers
     > {N_UNITS} units
     > {EPOCHS} epochs
+    > Optimizer = {OPTIMIZER}
+    > LR = {INIT_LR}
 Mean Errors:   
 {test_errs.mean()}
 ===========================================================
