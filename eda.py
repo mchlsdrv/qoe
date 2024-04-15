@@ -9,8 +9,8 @@ from sklearn.decomposition import PCA
 import seaborn as sns
 
 plt.style.use('ggplot')
-DATA_ROOT = pathlib.Path('/data/zoom/encrypted_traffic')
-data = pd.read_csv(DATA_ROOT / 'data.csv')
+DATA_ROOT = pathlib.Path('/cv_5_folds/zoom/encrypted_traffic')
+data = pd.read_csv(DATA_ROOT / 'cv_5_folds.csv')
 data = data.rename(columns={"Latancy": 'Latency'})
 data.to_csv(DATA_ROOT / 'data_no_nan.csv')
 data.head()
@@ -93,7 +93,7 @@ plt.plot(x, pckt_len)
 plt.xlabel('Sample')
 plt.ylabel('Packet length')
 
-# - Cleaning data
+# - Cleaning cv_5_folds
 data_norm = (data - data.mean()) / data.std()
 
 data_norm.head()
