@@ -104,38 +104,6 @@ class QoEModel(torch.nn.Module):
         return x
 
 
-# class QoEModel(torch.nn.Module):
-#     def __init__(self, n_features, n_labels, n_layers, n_units):
-#         super().__init__()
-#         self.n_features = n_features
-#         self.n_labels = n_labels
-#         self.n_layers = n_layers
-#         self.n_units = n_units
-#         self.model = None
-#         self.layers = []
-#         self._build()
-#
-#     def _build(self):
-#         self.layers = [
-#             torch.nn.Linear(self.n_features, self.n_units),
-#             torch.nn.BatchNorm1d(self.n_units),
-#             torch.nn.SiLU()
-#         ]
-#
-#         for lyr in range(self.n_layers):
-#             self.layers.append(torch.nn.Linear(self.n_units, self.n_units))
-#             self.layers.append(torch.nn.BatchNorm1d(self.n_units))
-#             self.layers.append(torch.nn.SiLU())
-#
-#         self.layers.append(torch.nn.Linear(self.n_units, self.n_labels))
-#         self.layers.append(torch.nn.ReLU())
-#
-#         self.model = torch.nn.Sequential(*self.layers)
-#
-#     def forward(self, x):
-#         return self.model(x)
-
-
 def get_train_val_split(data: pd.DataFrame, validation_proportion: float = 0.2):
     n_data = len(data)
     data_indices = np.arange(n_data)
@@ -292,8 +260,8 @@ def get_errors(results: pd.DataFrame, columns: list):
     return errors
 
 
-def run_ablation(test_data_root: pathlib.Path, features: list, labels: list, batch_size_numbers: list, epoch_numbers: list, layer_numbers: list, unit_numbers: list, loss_functions: list, optimizers: list, initial_learning_rates: list,
-                 save_dir: pathlib.Path):
+def run_ablation(test_data_root: pathlib.Path, data_dirs: list, features: list, labels: list, batch_size_numbers: list, epoch_numbers: list, layer_numbers: list, unit_numbers: list, loss_functions: list, optimizers: list,
+                 initial_learning_rates: list, save_dir: pathlib.Path):
 
     # - Will hold the final results
     ablation_results = pd.DataFrame()
@@ -301,6 +269,7 @@ def run_ablation(test_data_root: pathlib.Path, features: list, labels: list, bat
     # - Will hold the metadata for all experiments
     test_metadata = pd.DataFrame()
     test_dir_names = os.listdir(test_data_root)
+    test_dir_names = [test_dir_name for test_dir_name in test_dir_names if test_dir_name in data_dirs]
 
     # - Total experiments
     cv_folds = len(test_dir_names)
@@ -317,7 +286,7 @@ def run_ablation(test_data_root: pathlib.Path, features: list, labels: list, bat
     = ***************************************************************************************************************************************************************************** =
     =================================================================================================================================================================================
             > Total Number of experiments in ablation:
-                - CV folds: {cv_folds} 
+                - CV folds: {cv_folds}
                 - Batch sizes: {n_batch_sizes}
                 - Epoch numbers: {n_epoch_numbers}
                 - Layer numbers: {n_layer_numbers}
@@ -330,7 +299,6 @@ def run_ablation(test_data_root: pathlib.Path, features: list, labels: list, bat
     = ***************************************************************************************************************************************************************************** =
     =================================================================================================================================================================================
             ''')
-
     exp_idx = 0
     for fldr_idx, test_dir_name in enumerate(test_dir_names):
 
@@ -510,7 +478,7 @@ def run_ablation(test_data_root: pathlib.Path, features: list, labels: list, bat
                                     )
 
                                     # -- Add the errors to the configuration results
-                                    configuration_results = pd.concat([configuration_results, pd.DataFrame(test_errs.mean()).T], axis=1)
+                                    configuration_results = pd.concat([configuration_results, pd.DataFrame(test_errs.abs().mean()).T], axis=1)
 
                                     # - Add the results for the current configuration to the final ablation results
                                     ablation_results = pd.concat([ablation_results, configuration_results], axis=0).reset_index(drop=True)
@@ -534,8 +502,8 @@ Number of Parameters:
     > Non-Trainable: {n_non_train_params}
     => Total: {n_train_params + n_non_train_params}
 
-Mean Errors:   
-{test_errs.mean()}
+Mean Errors:
+{test_errs.abs().mean()}
 
 Status:
     - Experiment {exp_idx}/{total_exp} ({100 * exp_idx / total_exp:.2f}% done)
@@ -553,7 +521,7 @@ N_LAYERS = 64
 N_UNITS = 64
 EPOCHS = 100
 OPTIMIZER = torch.optim.Adam
-INIT_LR = 0.01
+INIT_LR = 0.008
 # INIT_LR = 0.0015
 LR_REDUCE_FREQUENCY = 20
 LR_REDUCE_FACTOR = 0.5
@@ -664,7 +632,7 @@ Configuration:
     > {EPOCHS} epochs
     > Optimizer = {OPTIMIZER}
     > LR = {INIT_LR}
-Mean Errors:   
+Mean Errors:
 {test_errs.mean()}
 ===========================================================
     ''')
