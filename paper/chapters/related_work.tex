@@ -1,0 +1,67 @@
+\section{Related Work}
+
+%% Version 1 (Score 100)
+There are three main lines of previous work on predicting QoE from encrypted traffic, viz. methods based on statistical analysis, Machine Learning (ML) algorithms, which mainly use decision trees or their variations, and Deep Learning (DL) algorithms employing Artificial Neural Networks (ANN). 
+
+% A large pool of work was done by now to solve the outlined problem. Previous work on predicting QoE from encrypted traffic may be divided into three lines, viz. methods based on statistical analysis, classical Machine Learning (ML) algorithms, and methods which use Deep Learning (DL) to solve it. 
+% Some of the most influential methods which correspond to the former line of work used a tree-based algorithms to predict categorical features regarding the quality of the images streamed over to the user. 
+
+%% (Score 100)
+A model for YouTube quality estimation streamed over HTTPS with the Dynamic Adaptive Streaming over HTTP (DASH) protocol was proposed in \cite{dubin2016video}. They showed that an accurate classification of the image quality is achievable just by looking into the data bursts picked up from the channel during the YouTube session, which they were able to classify into three categories (viz. 360p, 480p, and 720p) with an accuracy of 97\%. 
+
+%% Version 1 (score 98) 
+% In \cite{gutterman2020requet} authors extended the work of \cite{dubin2016video}, where they again analyzed YouTube sessions with DASH protocol but tried to predict resolution on a higher granularity, i.e., having six states (144p, 240p, 360p, 480p, 720p and 1080p) instead of just three (360p, 480p and 720p). They trained a decision tree algorithm but showed worse prediction performance compared to \cite{dubin2016video}, with just 66\% accuracy. 
+
+%% Version 2 (score 94)
+In \cite{gutterman2020requet} authors extended the work of \cite{dubin2016video}, where they again analyzed YouTube sessions with DASH protocol but tried to predict resolution on a higher granularity, i.e., having six states (144p, 240p, 360p, 480p, 720p and 1080p) instead of just three (480p, 720p and 1080p), with two other metrics, which are specific to DASH sessions (the buffer, and video states.) They trained a decision tree algorithm, and thought scoring 92.0\% and 84.2\% for the last two metrics respectively, their performance for the resolution was significantly lower than of \cite{dubin2016video}, with just 66\% accuracy. Even when the problem was reduced to a binary prediction, with just two categories of small (144p, 240p, 360p) and large (480p, 720p, and 1080p), the accuracy of their model did not exceed 91\%.
+
+%% Version 1 (Score 95)
+% Mazhar and Shafiq in \cite{mazhar2018real} presented a method for QoE prediction of a video transmitted over an encrypted channel using a decision tree algorithm. More specifically, they predicted the rebuffering events, video quality, and startup delay, features that correlate with the QoE of users from streamed videos. Although achieving classification accuracy of 90\% for HTTPS and 85\% for QUIC traffic, their method has a low granularity, as for each parameter they use a binary class prediction, i.e., "at least one" rebuffering event in a video session, "high" or "low" video quality, and whether the video started before or after some predefined time threshold, which was set to 5 seconds in their experiments.
+% In addition, their model predicts the QoE only retrospectively, i.e., on the whole video after the stream was completed, which renders their method less appropriate for real-time applications.
+
+%% Version 2 (Score 98)
+% Mazhar and Shafiq in \cite{mazhar2018real} presented a method for QoE prediction of a video transmitted over an encrypted channel using a decision tree algorithm to predict rebuffering events, video quality, and startup delay, features which all correlate with the QoE of users. Although achieving classification accuracy of 90\% for HTTPS and 85\% for QUIC traffic, their method has a low granularity, as for each parameter they use only a binary class prediction, i.e., "at least one" rebuffering event in a video session, "high" or "low" video quality, and whether the video started before or after some predefined time threshold.
+% In addition, their model predicts the QoE only retrospectively, i.e., on the whole video after the stream was completed, which renders their method less appropriate for real-time applications.
+
+%% Version 3 (Score 100)
+Mazhar and Shafiq in \cite{mazhar2018real} presented a method for QoE prediction of a video transmitted over an encrypted channel using a decision tree algorithm to predict rebuffering events, video quality, and startup delay, features which all correlate with the QoE of users. Although achieving classification accuracy of 90\% for HTTPS and 85\% for QUIC traffic, their method has two significant drawbacks, viz. its low granularity, as for each parameter they use only a binary class prediction, i.e., "at least one" rebuffering event in a video session, "high" or "low" video quality, and whether the video started before or after some predefined time threshold, and inability to be used in an online setting, as their model predicts the QoE only retrospectively.
+
+%% Version 1 (Score 97)
+% Authors of \cite{orsolic2018youtube} proposed YouQ framework for QoE estimation in a live setting. They used a simple model that combine proportions of the time spent in a high resolution (viz. 1080p or 720p) and the duration of the stalling events during the video playback time. According to the computed statistics, they classify each YouTube session into one of three categories, viz. "high," "medium," and "low." The method was evaluated against the MOS of human participants. Authors performed two lines of experiments using a binary label (viz. "high" or "low") in the first and achieved 91\% accuracy that dropped to 84\% after the addition of just one extra class (viz. "medium"), which highlight the weakness of their approach.
+
+%% Version 2 (Score 99)
+% Authors of \cite{orsolic2018youtube} proposed YouQ, a framework for QoE estimation in a live setting. They used a simple model that combine proportions of the time spent in a high resolution (viz. 1080p or 720p) and the duration of the stalling events during the video playback time. They evaluated their method against the MOS of human participants. In their work, authors have conducted two lines of experiments using a binary label (viz. "high" or "low") in the first and achieved 91\% accuracy that dropped to 84\% after the addition of just one extra class (viz. "medium"), which highlight the weakness of their approach.
+
+%% Version 3 (Score 100)
+Authors of \cite{orsolic2018youtube} proposed a YouQ, a framework for live QoE estimation. They used a simple model that combine proportions of the time spent in a high resolution (viz. 1080p or 720p) and the duration of the stalling events during the video playback time. They evaluated their method against the MOS of human participants. In their work, authors have conducted two lines of experiments using a binary label (viz. "high" or "low") in the first and achieved 91\% accuracy that dropped to 84\% after the addition of just one extra class (viz. "medium"), which highlight the weakness of their approach.
+
+%% Version 2 (Score 94)
+% The model presented in \cite{bronzino2019inferring} uses features from IP stack layers (viz., Network, Transport, and Application), to train a random forest regressor to predict startup delay and resolution in a real-time setting for four video streaming services, viz. YouTube, Netflix, Amazon and Twitch. 
+% They trained layer-specific and composite models, where the former used features from a single layer of the IP stack, e.g., the transport layer, while the former combined features from two different layers, e.g., Network and Transport, Network and Application, etc. Their training routine included two settings, namely an application-specific and cross-application setting. While in the first training routine, the training data was acquired from a single streaming service they used training data from multiple platforms for the second training routine.  
+% Though achieving an error as small as 1 second for startup delay and precision of 93\% for the resolution prediction, neither of their models could generalize well to data from an application on which it was not trained, e.g., a model trained on data exclusively from Netflix could not perform well on test data from either of YouTube, Amazon or Twitch.
+
+%% Version 2 (Score 98)
+% Authors in \cite{bronzino2019inferring} tried to improve on the results from \cite{mazhar2018real} by extending its predictive granularity. In their experiments, they trained a random forest model on features from layers of the IP stack, extracted from video streaming sessions. Their dataset included sessions of four popular video streaming platforms, viz. YouTube, Amazon, Netflix, and Twitch. Authors showed that their method, when trained on cross-layer data, may predict video resolution with an accuracy of 93\%.
+
+%% Version 3 (Score 100)
+Authors in \cite{bronzino2019inferring} tried to improve on the results from \cite{mazhar2018real} by extending its predictive granularity. In their experiments, they trained a random forest model on features from layers of the IP stack data. Their dataset included sessions of four popular video streaming platforms, viz. YouTube, Amazon, Netflix, and Twitch. Though the proposed method predicted video resolution with an accuracy of 93\%, it could not generalize well to other datasets.
+
+%% Version 1 (Score 93)
+One of the first studies investigating the QoE in VC applications was performed by \cite{chang2021can}. The authors studied the influence of the movement in the presented frame on the QoE of the end user. They conducted 700 controlled VC sessions on three popular VC platforms (viz. Zoom, Webex, and Google Meet), in which they presented videos with high and low movement. They used standard metrics for image quality evaluation, viz. PSNR (Peak-to-Noise Ratio), SSIM (Structural Similarity Index), and VIFp (Pixel Visual Information Fidelity) to infer the QoE of the user. 
+The main limitations of this work, as pointed out by the authors themselves, were the lack of generality in their experiments, i.e., they used specific settings that may not always represent the general use case. In addition, they only performed their experiments for small-sized conferencing sessions (less than 11 participants), which may not be projected on medium and large conferencing sessions directly.
+
+% In \cite{chang2021can} the authors perform a study of user-perceived performance of zoom, Webex and Google Meet in terms of streaming lag time, bandwidth requirements, quality (PSNR, SSIM, and VIFp), computing requirements, and how they are impacted by geography. 
+
+%% Version 1 (Score 100)
+Yet another study in \cite{macmillan2021measuring} considered the VC applications, but this time investigated differences in the minimal requirements to avoid a decrease in the QoE. They performed controlled experiments in which they varied the bandwidth of the down and the uplink separately, and other modalities such as the number of participants and the viewing mode (i.e., single image of the speaker or a gallery), comparing the behavior of three popular VC applications, viz. Zoom, Google Meet, and Teams. Interestingly, the authors showed that viewing mode may reduce uplink utilization through the reduction in the resolution of the displayed image. One possible limitation of this work is its strong association with geographical location, as their entire dataset originated from the same University.
+% \cite{macmillan2021measuring} Investigated the behavior of Zoom, Microsoft Teams and Google Meet VC applications and reported significant differences in network utilization, encoding strategy, and recovery time after network disruption. 
+
+%% Version 1 (Score 100)
+% As Zoom uses a proprietary header format that makes feature extraction challenging, a study in \cite{michel2022enabling} provided a method to extract packet-level features such as media bit-rate, frame size, frame rate, latency of the video stream, and jitter. 
+
+%% Version 2 (Score 100)
+As Zoom uses a proprietary header format that makes feature extraction challenging, a study in \cite{michel2022enabling} provided a method to extract packet-level features such as media bit-rate, frame size, frame rate, latency of the video stream, and jitter. 
+In their work, they outline the problem of retransmission identification and propose a \textit{frame delay} metric, which they define as the time between the first packet of a frame and the end of frame transmission, which should indicate if a high number of retransmissions occur during the session.
+
+
+% The paper in \cite{michel2022enabling} offers A detailed analysis of how the proprietary Zoom application layer protocol works at the packet level. The authors identify unencrypted fields in the Zoom packet format, find how to group streams into meetings, and how to identify peer-to-peer meetings. While the paper focus is on Zoom performance and behavior metrics under different network conditions, it does not infer end-user QoE. We do not focus on packet level analytics, but instead focus on predicting QoE metrics from the entire Zoom encrypted traffic stream using ML algorithms
