@@ -16,6 +16,11 @@ __pycache__/
 *.gz
 *-*.bib
 
+# Archives
+*.zip
+*.tar.gz
+*.rar
+*.7z
 
 # Distribution / packaging
 .Python

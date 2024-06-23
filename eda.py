@@ -7,134 +7,167 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix
 from sklearn.decomposition import PCA
 import seaborn as sns
+from scipy import stats
 plt.style.use('ggplot')
 
 
-DATA_ROOT = pathlib.Path('/Users/mchlsdrv/Desktop/QoE/data/zoom/encrypted_traffic')
+DATA_ROOT = pathlib.Path('/Users/mchlsdrv/Desktop/PhD/QoE/data/zoom/encrypted_traffic/')
 data = pd.read_csv(DATA_ROOT / 'data.csv')
-data = data.rename(columns={"Latancy": 'Latency'})
+data = data.rename(columns={
+    'Bandwidth': 'BW',
+    'Jitter': 'J',
+    'Resolution': 'R',
+    'Latancy': 'L',
+    'avg time between packets': 'ATP',
+    'fps': 'FPS',
+    'pps': 'PPS',
+    'packets length': 'PL',
+    'Interval start': 'IS',
+    'Src_Port': 'SP',
+    'Dest_Port': 'DP',
+})
+data = data.loc[~data.isna().loc[:, 'BW']]
+data.head()
+data = data.astype({
+    'BW': np.float32,
+    'J': np.float32,
+    'R': np.int16,
+    'L': np.float32,
+    'ATP': np.float32,
+    'FPS': np.int16,
+    'PPS': np.int16,
+    'PL': np.int16,
+    'IS': np.int16,
+    'SP': np.int16,
+    'DP': np.int16,
+})
 data.to_csv(DATA_ROOT / 'data_no_nan.csv')
 data.head()
-data = data.loc[~data.isna().loc[:, 'Bandwidth']]
-data.head()
-data_train = data.drop(columns=['NIQE'])
-data_train.head()
-data_trgt = data.loc[:, 'NIQE']
-data_trgt
+data.describe()
 
-# - Get train / test split
-TEST_PROP = 0.1
-n_data = len(data)
-n_test = int(n_data * TEST_PROP)
-n_test
-data_idxs = np.arange(n_data)
-test_idxs = np.random.choice(data_idxs, n_test, replace=True)
-test_idxs
-test_data = data.iloc[test_idxs].reset_index(drop=True)
-test_data
-test_data.to_csv(DATA_ROOT / 'test_data.csv')
-test_data = pd.read_csv(DATA_ROOT / 'test_data.csv')
-test_data
+# LABELS
+# -- Resolution
+lbl_r = data.loc[:, 'R']
+sns.displot(lbl_r)
+sns.boxenplot(lbl_r)
 
-train_data = data.iloc[np.setdiff1d(data_idxs, test_idxs)].reset_index(drop=True)
-train_data
-train_data.to_csv(DATA_ROOT / 'train_data.csv')
-train_data = pd.read_csv(DATA_ROOT / 'train_data.csv')
-train_data
-# EDA
+# -- FPS
+lbl_fps= data.loc[:, 'FPS']
+sns.histplot(lbl_fps)
+sns.boxenplot(lbl_fps)
+# -- NIQE
+lbl_niqe = data.loc[:, 'NIQE']
+sns.histplot(lbl_niqe)#, stat='density')#, binwidth=10)
+sns.boxenplot(niqe)
 
+
+# FEATURES
 # - Bandwidth
-bw = data.loc[:, 'Bandwidth']
+feat_bw = data.loc[:, 'BW']
 x = np.arange(len(data))
-plt.plot(x, bw)
+plt.plot(x, feat_bw)
 plt.xlabel('Sample')
 plt.ylabel('Bandwidth')
-
-# - NIQE - target
-niqe = data.loc[:, 'NIQE']
-plt.plot(x, niqe)
-plt.xlabel('Sample')
-plt.ylabel('NIQE')
-
-# - Resolution
-res = data.loc[:, 'Resolution']
-plt.plot(x, res)
-plt.xlabel('Sample')
-plt.ylabel('Resolution')
-
-# - FPS
-fps = data.loc[:, 'fps']
-plt.plot(x, fps)
-plt.xlabel('Sample')
-plt.ylabel('FPS')
-
-
-# - Latency
-latancy = data.loc[:, 'Latancy']
-plt.plot(x, latancy)
+sns.histplot(feat_bw)#, stat='density')#, binwidth=10)
+sns.boxenplot(feat_bw)
+# -- Latency
+feat_latency = data.loc[:, 'L']
+plt.plot(x, feat_latency)
 plt.xlabel('Sample')
 plt.ylabel('Latency')
+sns.histplot(feat_latency)
+sns.boxenplot(feat_latency)
 
-
-# - Jitter
-jitter = data.loc[:, 'Jitter']
-plt.plot(x, jitter)
+# -- Jitter
+feat_jitter = data.loc[:, 'J']
+plt.plot(x, feat_jitter)
 plt.xlabel('Sample')
 plt.ylabel('Jitter')
-
-# - AVG time between packets
-avg_t = data.loc[:, 'avg time between packets']
-plt.plot(x, avg_t)
+sns.histplot(feat_jitter)
+sns.boxenplot(feat_jitter)
+# -- AVG time between packets
+feat_avg_tp = data.loc[:, 'ATP']
+plt.plot(x, feat_avg_tp)
 plt.xlabel('Sample')
 plt.ylabel('Avg. time between packets')
-
-# - Packets lenght
-pckt_len = data.loc[:, 'packets length']
-plt.plot(x, pckt_len)
+sns.histplot(feat_avg_tp)
+sns.boxenplot(feat_avg_tp)
+# -- Packets lenght
+feat_pckt_len = data.loc[:, 'PL']
+plt.plot(x, feat_pckt_len)
 plt.xlabel('Sample')
-plt.ylabel('Packet length')
+plt.ylabel('Packet Length')
+sns.histplot(feat_pckt_len)
+sns.boxenplot(feat_pckt_len)
 
-# - Cleaning cv_5_folds
+# - Data normalization
+data.mean()
 data_norm = (data - data.mean()) / data.std()
-
+# - Check is there are any NAs in the data
+data_norm.isna().sum()
+data_norm.describe()
+sns.boxenplot(data_norm)
 data_norm.head()
-data_norm.isna()
-
-data_norm_no_na = data_norm.loc[~data_norm.isna().loc[:, 'Bandwidth']]
 
 # - Corralation
-data_corr = data_norm_no_na.corr()
+data_corr = data_norm.corr()
 data_corr
 sns.heatmap(data_corr)
 data_corr
+
 # - PCA
-data_no_niqe = data.drop(columns=['NIQE', 'Resolution', 'Dest_Port', 'Src_Port', 'Interval start'])
-data_no_niqe.head()
-data_no_niqe_norm = (data_no_niqe - data_no_niqe.mean()) / data.std()
-data_no_niqe_norm = (data_no_niqe - data_no_niqe.mean()) / data_no_niqe.std()
-data_no_niqe_norm.columns
-pca = PCA(n_components=data_no_niqe_norm.shape[1])
-pca.fit(data_no_niqe_norm)
+data_norm_labels = data_norm.loc[:, ['NIQE', 'R', 'FPS']]
+
+data_norm_labels.head()
+sns.boxenplot(data_norm_labels)
+
+data_norm_features = data_norm.loc[:, ['BW', 'PPS', 'ATP', 'PL', 'J', 'L']]
+
+data_norm_features.head()
+sns.boxenplot(data_norm_features)
+stats.zscore(data_norm_features)
+
+# OUTLIERS
+sns.boxenplot(data_norm_features)
+data_norm_features_no_outliers = data_norm_features.loc[(np.abs(stats.zscore(data_norm_features)) < 2).all(axis=1)]
+sns.boxenplot(data_norm_features_no_outliers)
+L = len(data_norm_features)
+N = len(data_norm_features_no_outliers)
+R = 100 - N * 100 / L
+print(f'''
+Total before reduction: {L}
+Total after reduction: {N}
+> Precent reduced: {R:.3f}%
+    ''')
+
+
+data_norm_no_outliers = data_norm.loc[(np.abs(stats.zscore(data_norm)) < 2).all(axis=1)]
+sns.boxenplot(data_norm_no_outliers)
+data_norm_features_no_outliers = data_norm_no_outliers.loc[:, ['BW', 'ATP', 'PL', 'PPS']].reset_index(drop=True)
+data_norm_features_no_outliers
+data_norm_labels_no_outliers = data_norm_no_outliers.loc[:, ['NIQE', 'R', 'FPS']].reset_index(drop=True)
+data_norm_labels_no_outliers
+
+pca = PCA(n_components=data_norm_features_no_outliers.shape[1])
+data_norm_features_no_outliers_pca = pd.DataFrame(pca.fit_transform(data_norm_features_no_outliers))
+data_norm_features_no_outliers_pca
+
+loadings = pd.DataFrame(pca.components_.T, columns=[f'PC{i}' for i in range(len(data_norm_features_no_outliers.columns))], index=data_norm_features_no_outliers.columns)
+loadings
+
 exp_var = pca.explained_variance_ratio_
 cum_exp_var = np.cumsum(exp_var)
 cum_exp_var
 
-loadings = pd.DataFrame(pca.components_.T, columns=[f'PC{i}' for i in range(len(data_no_niqe_norm.columns))], index=data_no_niqe_norm.columns)
-
-loadings
-loadings.sum(axis=0)
-plt.plot(pca.explained_variance_ratio_)
+plt.plot(1 - pca.explained_variance_ratio_)
 plt.ylabel('Explained Variance')
 plt.xlabel('Components')
 
+sns.boxenplot(data_norm_features_no_outliers_pca)
 
 
-
-
-
-
-
-
-
-
+data_norm_features_no_outliers_pca_labels = pd.concat([data_norm_features_no_outliers_pca, data_norm_labels_no_outliers], axis=1)
+data_norm_features_no_outliers_pca_labels
+sns.boxenplot(data_norm_features_no_outliers_pca_labels)
+data_norm_features_no_outliers_pca_labels.to_csv('/Users/mchlsdrv/Desktop/PhD/QoE/data/zoom/encrypted_traffic/data_norm_no_outliers_pca.csv', index=False)
 

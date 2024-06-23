@@ -23,7 +23,8 @@ if __name__ == '__main__':
     OPTIMIZERS = [torch.optim.SGD, torch.optim.Adam, torch.optim.Adamax]
     INITIAL_LEARNING_RATES = [0.001, 0.002, 0.005, 0.008, 0.01]
     FEATURES = ['Bandwidth', 'pps', 'avg time between packets', 'packets length']
-    LABELS = ['NIQE', 'Resolution', 'fps']
+    LABELS = ['NIQE']
+    # LABELS = ['NIQE', 'Resolution', 'fps']
 
     run_ablation(
         test_data_root=DATA_ROOT,

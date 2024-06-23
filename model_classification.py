@@ -12,6 +12,9 @@ import scipy
 from torch.utils.data import Dataset
 import matplotlib
 import matplotlib.pyplot as plt
+from sklearn.metrics import precision_recall_fscore_support
+
+from qoe.classification_utils import to_categorical
 
 matplotlib.use('Agg')
 plt.style.use('ggplot')
@@ -25,12 +28,10 @@ class QoEDataset(torch.utils.data.Dataset):
         self.rmv_outliers = remove_outliers
 
         self.feature_columns = feature_columns
-        self.feature_df = None
+        self.X = None
 
         self.label_columns = label_columns
-        self.label_df = None
-
-        self.labels_mu, self.labels_std = .0, .0
+        self.y = None
 
         self.pca = pca
 
@@ -40,7 +41,7 @@ class QoEDataset(torch.utils.data.Dataset):
         return len(self.data_df)
 
     def __getitem__(self, index):
-        return torch.as_tensor(self.feature_df.iloc[index], dtype=torch.float32), torch.as_tensor(self.label_df.iloc[index], dtype=torch.float32)
+        return torch.as_tensor(self.X[index], dtype=torch.float32), torch.as_tensor(self.y[index], dtype=torch.float32)
 
     def prepare_data(self):
         # 1) Drop unused columns
@@ -55,16 +56,12 @@ class QoEDataset(torch.utils.data.Dataset):
             self.data_df = self.remove_outliers(data_df=self.data_df, std_th=OUTLIER_TH)
 
         # 4) Split to features and labels
-        self.feature_df = self.data_df.loc[:, self.feature_columns]
-        self.label_df = self.data_df.loc[:, self.label_columns]
+        self.X = self.data_df.loc[:, self.feature_columns].values
+        self.y = self.data_df.loc[:, self.label_columns].values
 
-        # 4) Normalization on features and labels separately, to be able in test time to distinguish between them easily
-        self.feature_df, _, _ = self.normalize(self.feature_df)
-        self.label_df, self.labels_mu, self.labels_std = self.normalize(self.label_df)
-
-        # 5) PCA on the features
-        if isinstance(self.pca, sklearn.decomposition.PCA):
-            self.feature_df = pd.DataFrame(np.dot(self.feature_df - self.pca.mean_, self.pca.components_.T))
+        # # 5) PCA on the features
+        # if isinstance(self.pca, sklearn.decomposition.PCA):
+        #     self.feature_df = pd.DataFrame(np.dot(self.feature_df - self.pca.mean_, self.pca.components_.T))
 
     @staticmethod
     def normalize(data_df):
@@ -88,9 +85,6 @@ class QoEDataset(torch.utils.data.Dataset):
     ''')
 
         return dataset_no_outliers
-
-    def unnormalize_labels(self, x):
-        return x * self.labels_std + self.labels_mu
 
 
 class QoEModel(torch.nn.Module):
@@ -120,7 +114,7 @@ class QoEModel(torch.nn.Module):
         for lyr in range(self.n_layers):
             self._add_layer(n_in=self.n_units, n_out=self.n_units, activation=torch.nn.SiLU)
 
-        self._add_layer(n_in=self.n_units, n_out=self.n_labels, activation=torch.nn.Tanh)
+        self.out_layer = torch.nn.Linear(in_features=self.n_units, out_features=1)
 
     def forward(self, x, p_drop: float = 0.0):
         tmp_in = x
@@ -135,7 +129,7 @@ class QoEModel(torch.nn.Module):
             tmp_in = x
 
         x = torch.nn.functional.dropout(x, p=p_drop, training=self.training)
-
+        x = self.out_layer(x)
         return x
 
 
@@ -167,7 +161,7 @@ def run_train(model: torch.nn.Module, epochs: int, train_data_loader: torch.util
         for (X, Y) in btch_pbar:
             X = X.to(device)
             results = model(X, p_drop=p_drop)
-            loss = loss_function(results, Y)
+            loss = loss_function(results.view(results.shape[0] * results.shape[1], ), Y.view(Y.shape[0] * Y.shape[1], ))
 
             optimizer.zero_grad()
             loss.backward()
@@ -189,7 +183,7 @@ def run_train(model: torch.nn.Module, epochs: int, train_data_loader: torch.util
             for (X, Y) in val_data_loader:
                 X = X.to(device)
                 results = model(X)
-                loss = loss_function(results, Y)
+                loss = loss_function(results.view(results.shape[0] * results.shape[1], ), Y.view(Y.shape[0] * Y.shape[1], ))
                 btch_val_losses = np.append(btch_val_losses, loss.item())
 
         val_losses = np.append(val_losses, btch_val_losses.mean())
@@ -204,11 +198,15 @@ def run_train(model: torch.nn.Module, epochs: int, train_data_loader: torch.util
 
 
 def run_test(model: torch.nn.Module, data_loader: torch.utils.data.DataLoader, device: torch.device = torch.device('cpu')):
-    test_results = pd.DataFrame()
+    metrics = pd.DataFrame(columns=['precision', 'recall', 'f1'])
+    preds = pd.DataFrame()
     for (X, Y) in data_loader:
         X = X.to(device)
         btch_preds = model(X)
 
+        precision, recall, f1, _ = precision_recall_fscore_support(Y, btch_preds)
+
+        metrics = pd.concat([metrics, pd.DataFrame(dict(precision=precision, recall=recall, f1=f1), index=pd.Index([0]))], ignore_index=True)
         for y, pred in zip(Y, btch_preds):
             d = dict()
 
@@ -224,11 +222,11 @@ def run_test(model: torch.nn.Module, data_loader: torch.utils.data.DataLoader, d
             btch_results = pd.DataFrame(d, index=pd.Index([0]))
 
             # - Add the batch cv_5_folds frame to the total results
-            test_results = pd.concat([test_results, btch_results])
+            preds = pd.concat([preds, btch_results])
 
-    test_results = test_results.reset_index(drop=True)
+    preds = preds.reset_index(drop=True)
 
-    return test_results
+    return metrics, preds
 
 
 def run_pca(dataset_df: pd.DataFrame):
@@ -238,46 +236,6 @@ def run_pca(dataset_df: pd.DataFrame):
     return dataset_pca_df, pca
 
 
-def unnormalize_results(results: pd.DataFrame, data_set: QoEDataset, n_columns: int) -> pd.DataFrame:
-    """
-    This function unnormalizes the labels by performing X * STD(X) + MEAN(X) performed in the process of dataset creation, thus it requires
-    the original QoEDataset object
-    :param results: pandas.DataFrame object containing the results with  2 * n_columns columns, where the first n_columns are the true, and the last n_columns are the predicted labels
-    :param data_set: The original QoEDataset object which was created for the process of training / testing, and contains the mean and the std of each label
-    :param n_columns: The number of labels
-    :return: pandas.DataFrame containing the unnormalized true and predicted labels
-    """
-    unnormalized_results = pd.DataFrame()
-    for line_idx in range(len(results)):
-        # - Get the line
-        res = pd.DataFrame(results.iloc[line_idx]).T.reset_index(drop=True)
-
-        # - Get the true labels
-        labels = pd.DataFrame(data_set.unnormalize_labels(res.iloc[0, :n_columns].values)).T
-
-        # - Rename the columns to include the "true" postfix
-        for old_name in data_set.data_df.columns:
-            new_name = f'{old_name}_true'
-            labels = labels.rename(columns={old_name: new_name})
-
-        # - Get the predictions
-        preds = pd.DataFrame(data_set.unnormalize_labels(res.iloc[0, n_columns:].values)).T
-        for old_name in data_set.data_df.columns:
-            new_name = f'{old_name}_pred'
-            preds = preds.rename(columns={old_name: new_name})
-
-        # - Concatenate the labels with the preds horizontally
-        labels_preds = pd.concat([labels, preds], axis=1)
-
-        # - Append to the unnormalized_results
-        unnormalized_results = pd.concat([unnormalized_results, labels_preds])
-
-    # - Reset the index to normal
-    unnormalized_results = unnormalized_results.reset_index(drop=True)
-
-    return unnormalized_results
-
-
 def get_number_of_parameters(model: torch.nn.Module):
 
     n_total_params = sum(p.numel() for p in model.parameters())
@@ -285,18 +243,6 @@ def get_number_of_parameters(model: torch.nn.Module):
     n_non_trainable_parameters = n_total_params - n_trainable_params
 
     return n_trainable_params, n_non_trainable_parameters
-
-
-def get_errors(results: pd.DataFrame, columns: list):
-    n_columns = len(columns)
-    true = results.iloc[:, :n_columns].values
-    pred = results.iloc[:, n_columns:].values
-
-    columns = [column_name + '_errors(%)' for column_name in columns]
-
-    errors = pd.DataFrame(np.abs(100 - true * 100 / pred), columns=columns)
-
-    return errors
 
 
 def run_ablation(test_data_root: pathlib.Path, data_dirs: list, features: list, labels: list, batch_size_numbers: list, epoch_numbers: list, layer_numbers: list, unit_numbers: list, loss_functions: list, optimizers: list,
@@ -352,44 +298,22 @@ def run_ablation(test_data_root: pathlib.Path, data_dirs: list, features: list, 
         test_data_df = pd.read_csv(data_folder / 'test_data.csv')
 
         for epch_idx, n_epochs in enumerate(epoch_numbers):
-            # print('******************************************************************************************')
-            # print(f'\t - Epochs: {n_epochs} - {epch_idx + 1}/{len(epoch_numbers)} ({100 * (epch_idx + 1) / len(epoch_numbers):.2f}% done)')
-            # print('******************************************************************************************')
             for btch_idx, batch_size in enumerate(batch_size_numbers):
-                # print('******************************************************************************************')
-                # print(f'\t - Batch size: {batch_size} - {btch_idx + 1}/{len(batch_size_numbers)} ({100 * (btch_idx + 1) / len(batch_size_numbers):.2f}% done)')
-                # print('******************************************************************************************')
                 for lyr_idx, n_layers in enumerate(layer_numbers):
-                    # print('******************************************************************************************')
-                    # print(f'\t - Layers number: {n_layers} - {lyr_idx + 1}/{len(layer_numbers)} ({100 * (lyr_idx + 1) / len(layer_numbers):.2f}% done)')
-                    # print('******************************************************************************************')
                     for units_idx, n_units in enumerate(unit_numbers):
-                        # print('******************************************************************************************')
-                        # print(f'\t - Units number: {n_units} - {units_idx + 1}/{len(unit_numbers)} ({100 * (units_idx + 1) / len(unit_numbers):.2f}% done)')
-                        # print('******************************************************************************************')
                         for loss_func_idx, loss_func in enumerate(loss_functions):
                             loss_func_name = 'mse'
-                            # print('******************************************************************************************')
-                            # print(f'\t - Loss function: {loss_func} - {loss_func_idx + 1}/{len(loss_functions)} ({100 * (loss_func_idx + 1) / len(loss_functions):.2f}% done)')
-                            # print('******************************************************************************************')
                             for opt_idx, opt in enumerate(optimizers):
                                 opt_name = 'adam'
                                 if opt == torch.optim.SGD:
                                     opt_name = 'sgd'
                                 if opt == torch.optim.Adamax:
                                     opt_name = 'adamax'
-                                # print('******************************************************************************************')
-                                # print(f'\t - Optimizer: {opt} - {opt_idx + 1}/{len(optimizers)} ({100 * (opt_idx + 1) / len(optimizers):.2f}% done)')
-                                # print('******************************************************************************************')
                                 for init_lr_idx, init_lr in enumerate(initial_learning_rates):
-                                    # print('******************************************************************************************')
-                                    # print(f'\t - Initial learning rate: {init_lr} - {init_lr_idx + 1}/{len(initial_learning_rates)} ({100 * (init_lr_idx + 1) / len(initial_learning_rates):.2f}% done)')
-                                    # print('******************************************************************************************')
 
                                     exp_idx += 1
 
                                     # - Split into train / val
-
                                     train_df, val_df = get_train_val_split(train_data_df, validation_proportion=VAL_PROP)
 
                                     # - Dataset
@@ -480,19 +404,16 @@ def run_ablation(test_data_root: pathlib.Path, data_dirs: list, features: list, 
                                     )
 
                                     # - Test the model
-                                    test_res = run_test(model=mdl, data_loader=test_dl, device=DEVICE)
-                                    test_res = unnormalize_results(results=test_res, data_set=test_ds, n_columns=len(test_res.columns) // 2)
+                                    metrics, results = run_test(model=mdl, data_loader=test_dl, device=DEVICE)
 
                                     # - Save the test metadata
-                                    test_res.to_csv(train_save_dir / f'test_results.csv', index=False)
-
-                                    # - Get the test errors
-                                    test_errs = get_errors(results=test_res, columns=test_ds.label_columns)
+                                    results.to_csv(train_save_dir / f'test_results.csv', index=False)
 
                                     # - Save the test metadata
-                                    test_errs.to_csv(train_save_dir / f'test_errors.csv', index=False)
+                                    metrics.to_csv(train_save_dir / f'test_metrics.csv', index=False)
 
-                                    test_res = pd.concat([test_res, test_errs], axis=1)
+                                    test_res = pd.DataFrame()
+                                    test_res = pd.concat([test_res, results], axis=1)
 
                                     # configuration_test_metadata = pd.concat([test_metadata, test_res], axis=1).reset_index(drop=True)
 
@@ -535,7 +456,7 @@ def run_ablation(test_data_root: pathlib.Path, data_dirs: list, features: list, 
                                     )
 
                                     # -- Add the errors to the configuration results
-                                    configuration_results = pd.concat([configuration_results, pd.DataFrame(test_errs.abs().mean()).T], axis=1)
+                                    configuration_results = pd.concat([configuration_results, pd.DataFrame(metrics.abs().mean()).T], axis=1)
 
                                     # - Add the results for the current configuration to the final ablation results
                                     ablation_results = pd.concat([ablation_results, configuration_results], axis=0).reset_index(drop=True)
@@ -560,7 +481,7 @@ Number of Parameters:
     => Total: {n_train_params + n_non_train_params}
 
 Mean Errors:
-{test_errs.abs().mean()}
+{metrics.abs().mean()}
 
 Status:
     - Experiment {exp_idx}/{total_exp} ({100 * exp_idx / total_exp:.2f}% done)
@@ -580,6 +501,7 @@ def get_arg_parser():
     # - GENERAL PARAMETERS
     parser.add_argument('--n_layers', type=int, default=N_LAYERS, help='Number of NN-Blocks in the network')
     parser.add_argument('--n_units', type=int, default=N_UNITS, help='Number of units in each NN-Block')
+    parser.add_argument('--n_classes', type=int, default=N_CLASSES, help='Number of classes in of the target')
     parser.add_argument('--epochs', type=int, default=EPOCHS, help='Number of epochs to train the model')
     parser.add_argument('--outlier_th', type=int, default=OUTLIER_TH, help='Represents the number of STDs from the mean to remove samples with')
     parser.add_argument('--lr', type=int, default=LR, help='Represents the initial learning rate of the optimizer')
@@ -597,6 +519,7 @@ def get_arg_parser():
 
 
 TS = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+N_CLASSES = None
 N_LAYERS = 32
 N_UNITS = 256
 EPOCHS = 100
@@ -612,10 +535,9 @@ VAL_PROP = 0.2
 
 # FEATURES = ['Bandwidth', 'pps', 'Jitter', 'packets length', 'Interval start', 'Latency', 'avg time between packets']
 FEATURES = ['Bandwidth', 'pps', 'packets length', 'avg time between packets']
-LABELS = ['NIQE']
-# LABELS = ['NIQE', 'Resolution', 'fps']
+LABEL = 'Resolution'
 
-LOSS_FUNCTION = torch.nn.MSELoss()
+LOSS_FUNCTION = torch.nn.CrossEntropyLoss()
 DEVICE = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 TRAIN_DATA_FILE = pathlib.Path('/Users/mchlsdrv/Desktop/PhD/QoE/data/zoom/encrypted_traffic/test/train_data.csv')
 # TRAIN_DATA_FILE = pathlib.Path('/Users/mchlsdrv/Desktop/PhD/QoE/data/zoom/encrypted_traffic/data_norm_no_outliers_pca.csv')
@@ -632,6 +554,20 @@ if __name__ == '__main__':
     # - Get the cv_5_folds
     train_data_df = pd.read_csv(TRAIN_DATA_FILE)
 
+    class_th = [800.]  # Binary by default
+    loss_func = torch.nn.BCELoss()
+    if args.n_classes == 3:
+        class_th = [640., 960.]  # Trinary if 2 thresholds are provides
+        loss_func = torch.nn.CrossEntropyLoss()
+    elif args.n_classes == 4:
+        class_th = [480., 640., 960.]  # 4-classes if 3 thresholds are provided
+        loss_func = torch.nn.CrossEntropyLoss()
+    else:
+        class_th = None  # all available classes, if thresholds are None
+        loss_func = torch.nn.CrossEntropyLoss()
+
+    train_data_df = to_categorical(data_df=train_data_df, label=LABEL, class_thresholds=class_th)
+
     # train_data_df.loc[:, FEATURES], train_pca = run_pca(dataset_df=train_data_df.loc[:, FEATURES])
     train_pca = None
 
@@ -641,14 +577,14 @@ if __name__ == '__main__':
     train_ds = QoEDataset(
         data_df=train_df,
         feature_columns=FEATURES,
-        label_columns=LABELS,
+        label_columns=[LABEL],
         pca=train_pca,
         remove_outliers=True
     )
     val_ds = QoEDataset(
         data_df=val_df,
         feature_columns=FEATURES,
-        label_columns=LABELS,
+        label_columns=[LABEL],
         pca=train_pca,
         remove_outliers=False
 
@@ -675,14 +611,11 @@ if __name__ == '__main__':
     )
 
     # - Build the model
-    mdl = QoEModel(n_features=len(FEATURES), n_labels=len(LABELS), n_layers=args.n_layers, n_units=args.n_units)
+    mdl = QoEModel(n_features=len(FEATURES), n_labels=len([LABEL]), n_layers=args.n_layers, n_units=args.n_units)
     mdl.to(DEVICE)
 
     # - Optimizer
     optimizer = OPTIMIZER(mdl.parameters(), lr=args.lr)
-
-    # - Loss
-    loss_func = LOSS_FUNCTION
 
     # - Train
     # - Create the train directory
@@ -713,7 +646,7 @@ if __name__ == '__main__':
     test_ds = QoEDataset(
         data_df=test_data_df,
         feature_columns=FEATURES,
-        label_columns=LABELS,
+        label_columns=[LABEL],
         pca=train_pca,
         remove_outliers=False
     )
@@ -726,16 +659,9 @@ if __name__ == '__main__':
         drop_last=True
     )
 
-    test_res = run_test(model=mdl, data_loader=test_dl, device=DEVICE)
-    test_res = unnormalize_results(results=test_res, data_set=test_ds, n_columns=len(test_res.columns) // 2)
-    test_res.to_csv(train_save_dir / f'test_results_{args.n_layers}_layers_{args.n_units}_units_{args.epochs}_epochs.csv')
-
-    test_errs = get_errors(results=test_res, columns=test_ds.label_columns)
-    test_errs.to_csv(train_save_dir / f'test_errors_{args.n_layers}_layers_{args.n_units}_units_{args.epochs}_epochs.csv')
-
-    test_res = pd.concat([test_res, test_errs], axis=1)
-
-    test_res = pd.concat([test_res, test_res]).reset_index(drop=True)
+    metrics, test_preds = run_test(model=mdl, data_loader=test_dl, device=DEVICE)
+    metrics.to_csv(train_save_dir / f'metrics_{args.n_layers}_layers_{args.n_units}_units_{args.epochs}_epochs.csv')
+    test_preds.to_csv(train_save_dir / f'test_results_{args.n_layers}_layers_{args.n_units}_units_{args.epochs}_epochs.csv')
 
     print(f'''
 ===========================================================
@@ -748,6 +674,6 @@ Configuration:
     > Optimizer = {OPTIMIZER}
     > LR = {args.lr}
 Mean Errors:
-{test_errs.mean()}
+{metrics.mean(axis=1)}
 ===========================================================
     ''')

@@ -4,16 +4,15 @@ import numpy as np
 import pandas as pd
 
 
-def build_test_datasets(data: pd.DataFrame, n_test_sets, test_set_proportion: float, root_save_dir: pathlib.Path):
+def build_test_datasets(data: pd.DataFrame, n_folds: int,  root_save_dir: pathlib.Path):
     """
-    Divides the cv_5_folds into n_test_sets train-test datasets each with proportion of
+    Divides the cv_n_folds into n_test_sets train-test datasets each with proportion of
     (1-test_set_proportion):test_set_proportion respectively.
 
     * Each test dataset is chosen to not include items from other test sets
 
     :param data: pandas.DataFrame object containing the cv_5_folds
-    :param n_test_sets: Number of test sets to produce
-    :param test_set_proportion: The proportion by which to divide the cv_5_folds
+    :param n_folds: Number of test sets to produce
     :param root_save_dir: The location to save the datasets at
     :return: None
     """
@@ -21,6 +20,7 @@ def build_test_datasets(data: pd.DataFrame, n_test_sets, test_set_proportion: fl
     n_items = len(data)
 
     # - Get the number of test items
+    test_set_proportion = n_folds / 100
     n_test_items = int(n_items * test_set_proportion)
 
     # - Produce the total set of indices
@@ -30,7 +30,7 @@ def build_test_datasets(data: pd.DataFrame, n_test_sets, test_set_proportion: fl
     valid_test_idxs = np.arange(n_items)
 
     # - Create an n_test_sets train-test sets
-    for test_set_idx in range(n_test_sets):
+    for test_set_idx in range(n_folds):
         # - Chose randomly n_test_items from the all_idxs
         test_idxs = np.random.choice(all_idxs, n_test_items, replace=False)
 
@@ -46,7 +46,7 @@ def build_test_datasets(data: pd.DataFrame, n_test_sets, test_set_proportion: fl
         # - Save the train / test datasets
 
         # -- Create a dir for the current test set
-        test_set_save_dir = root_save_dir / f'ablation/test{test_set_idx}'
+        test_set_save_dir = root_save_dir / f'test{test_set_idx}'
         os.makedirs(test_set_save_dir, exist_ok=True)
 
         # -- Save teh datasets
@@ -54,9 +54,11 @@ def build_test_datasets(data: pd.DataFrame, n_test_sets, test_set_proportion: fl
         test_data.to_csv(test_set_save_dir / f'test_data.csv', index=False)
 
 
-DATA_PATH = pathlib.Path('/cv_5_folds/zoom/encrypted_traffic/data_no_nan.csv')
-DATA_SET = pd.read_csv(DATA_PATH)
-SAVE_DIR = pathlib.Path('/cv_5_folds/zoom/encrypted_traffic')
+N_FOLDS = 10
+DATA_ROOT_DIR = pathlib.Path(f'/Users/mchlsdrv/Desktop/PhD/QoE/data/zoom/encrypted_traffic')
+DATA_SET_PATH = DATA_ROOT_DIR / f'data_no_nan.csv'
+DATA_SET = pd.read_csv(DATA_SET_PATH)
+SAVE_DIR = DATA_ROOT_DIR / f'encrypted_traffic/cv_{N_FOLDS}_folds'
 
 if __name__ == '__main__':
-    build_test_datasets(data=DATA_SET, n_test_sets=5, test_set_proportion=0.1, root_save_dir=SAVE_DIR)
+    build_test_datasets(data=DATA_SET, n_folds=N_FOLDS, root_save_dir=SAVE_DIR)
