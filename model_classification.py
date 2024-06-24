@@ -197,36 +197,18 @@ def run_train(model: torch.nn.Module, epochs: int, train_data_loader: torch.util
     return train_losses, val_losses
 
 
-def run_test(model: torch.nn.Module, data_loader: torch.utils.data.DataLoader, device: torch.device = torch.device('cpu')):
+def run_test(model: torch.nn.Module, data_loader: torch.utils.data.DataLoader, class_bins, device: torch.device = torch.device('cpu')):
     metrics = pd.DataFrame(columns=['precision', 'recall', 'f1'])
-    preds = pd.DataFrame()
     for (X, Y) in data_loader:
         X = X.to(device)
         btch_preds = model(X)
+        true = Y.numpy().flatten()
+        preds = to_categorical(data=np.abs(btch_preds.detach().cpu().numpy().flatten()), class_bins=class_bins)[0]
+        precision, recall, f1, _ = precision_recall_fscore_support(true, preds)
 
-        precision, recall, f1, _ = precision_recall_fscore_support(Y, btch_preds)
+        metrics = pd.concat([metrics, pd.DataFrame(dict(precision=precision, recall=recall, f1=f1))], ignore_index=False)
 
-        metrics = pd.concat([metrics, pd.DataFrame(dict(precision=precision, recall=recall, f1=f1), index=pd.Index([0]))], ignore_index=True)
-        for y, pred in zip(Y, btch_preds):
-            d = dict()
-
-            # - Add labels
-            for i, y_val in enumerate(y):
-                d[f'true_{i}'] = np.float32(y_val.numpy())
-
-            # - Add preds
-            for i, pred_val in enumerate(pred):
-                d[f'pred_{i}'] = np.float32(pred_val.detach().numpy())
-
-            # - Create the cv_5_folds frame
-            btch_results = pd.DataFrame(d, index=pd.Index([0]))
-
-            # - Add the batch cv_5_folds frame to the total results
-            preds = pd.concat([preds, btch_results])
-
-    preds = preds.reset_index(drop=True)
-
-    return metrics, preds
+    return metrics
 
 
 def run_pca(dataset_df: pd.DataFrame):
@@ -522,12 +504,12 @@ TS = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 N_CLASSES = None
 N_LAYERS = 32
 N_UNITS = 256
-EPOCHS = 100
+EPOCHS = 300
 OPTIMIZER = torch.optim.Adam
 LR = 0.01
-LR_REDUCTION_FREQ = 20
+LR_REDUCTION_FREQ = 50
 LR_REDUCTION_FCTR = 0.5
-DROPOUT_START = 50
+DROPOUT_START = 100
 DROPOUT_P = 0.1
 BATCH_SIZE = 128
 OUTLIER_TH = 2
@@ -544,7 +526,11 @@ TRAIN_DATA_FILE = pathlib.Path('/Users/mchlsdrv/Desktop/PhD/QoE/data/zoom/encryp
 TEST_DATA_FILE = pathlib.Path('/Users/mchlsdrv/Desktop/PhD/QoE/data/zoom/encrypted_traffic/test/test_data.csv')
 OUTPUT_DIR = pathlib.Path('/Users/mchlsdrv/Desktop/PhD/QoE/data/zoom/encrypted_traffic/test/output')
 
-
+# N = np.array([18.159685, 18.076567, 18.084219, 18.085821, 18.081762, 18.131533,
+#        18.16927 , 18.58294 , 18.383863, 18.670801, 18.286472, 18.302538,
+#        18.663935, 18.365793, 18.073303, 18.236994], dtype=np.float32)
+# to_categorical(data=N, classes=[0, 1, 2, 3, 4, 5, 6], class_bins=[(0, 1), (2, 3), (4, 5), (6, 6)])
+CLASS_BINS = [(0, 1), (2, 3), (4, 5), (6, 6)]
 if __name__ == '__main__':
     parser = get_arg_parser()
     args = parser.parse_args()
@@ -566,7 +552,7 @@ if __name__ == '__main__':
         class_th = None  # all available classes, if thresholds are None
         loss_func = torch.nn.CrossEntropyLoss()
 
-    train_data_df = to_categorical(data_df=train_data_df, label=LABEL, class_thresholds=class_th)
+    train_data_df, train_classes, train_codes = to_categorical(data=train_data_df, label=LABEL, class_thresholds=class_th, as_array=False)
 
     # train_data_df.loc[:, FEATURES], train_pca = run_pca(dataset_df=train_data_df.loc[:, FEATURES])
     train_pca = None
@@ -643,6 +629,7 @@ if __name__ == '__main__':
     plt.close()
 
     test_data_df = pd.read_csv(TEST_DATA_FILE)
+    test_data_df, _, _ = to_categorical(data=test_data_df, label=LABEL, classes=train_classes, as_array=False)
     test_ds = QoEDataset(
         data_df=test_data_df,
         feature_columns=FEATURES,
@@ -659,9 +646,9 @@ if __name__ == '__main__':
         drop_last=True
     )
 
-    metrics, test_preds = run_test(model=mdl, data_loader=test_dl, device=DEVICE)
+    metrics = run_test(model=mdl, data_loader=test_dl, class_bins=CLASS_BINS, device=DEVICE)
     metrics.to_csv(train_save_dir / f'metrics_{args.n_layers}_layers_{args.n_units}_units_{args.epochs}_epochs.csv')
-    test_preds.to_csv(train_save_dir / f'test_results_{args.n_layers}_layers_{args.n_units}_units_{args.epochs}_epochs.csv')
+    # test_preds.to_csv(train_save_dir / f'test_results_{args.n_layers}_layers_{args.n_units}_units_{args.epochs}_epochs.csv')
 
     print(f'''
 ===========================================================

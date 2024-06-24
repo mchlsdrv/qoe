@@ -42,35 +42,71 @@ def eval_classifier(X, y, model):
     return precision, recall, f1, support
 
 
-def to_categorical(data_df: pd.DataFrame, label: str, class_thresholds: list = None):
+def to_categorical(data: pd.DataFrame or np.ndarray, label: str = None, classes: list = None, class_bins: list = None, class_thresholds: list = None, as_array: bool = True):
     """
     Converts categorical features represented by some number by a running index [0, 1, 2, 3, ... , n_classes]
-    :param data_df: The pd.DataFrame to be divided
-    :param label: The label of the feature to be divided
+    :param data: The pd.DataFrame to be divided
+    :param label: The label of the feature to be divided, if None - the input is np.ndarray
+    :param classes: (Optional) If provided - no new classes will be calculated
+    :param class_bins: Specific bins designated by thresholds of each class
     :param class_thresholds: list of the thresholds for each category
+    :param as_array: If to output the result as a np.ndarray
     :return: Transformed pd.DataFrame
     """
-    classes = np.unique(data_df.loc[:, label])
-    if class_thresholds is not None:
+    # - Get only the label column
+    x = data
+    if isinstance(data, pd.DataFrame) and label is not None:
+        x = data.loc[:, label].values
+    x = x.flatten()
+
+    # - Find the different classes in the data
+    if classes is None:
+        classes = np.unique(x)
+    class_codes = np.arange(len(classes))
+    if class_bins is not None:
+        # - Assign the classes based on boundaries
+        for cls, cls_bin in enumerate(class_bins):
+            cls_th = np.mean(cls_bin)
+            x[np.argwhere((cls_bin[0] < x) & (x <= cls_th))] = cls_bin[0]
+            x[np.argwhere((cls_th > x) & (x <= cls_bin[1]))] = cls_bin[1]
+
+        # - If the value is lower than the minimal class - assign it the minimal class
+        x[np.argwhere(x < class_bins[0][0])] = class_bins[0][0]
+
+        # - If the value is greater than the maximal class - assign it the maximal class
+        x[np.argwhere(x > class_bins[-1][1])] = class_bins[-1][1]
+
+    elif class_thresholds is not None:
+        # - Get global range boundaries
         cls_min = classes[0]
         cls_max = classes[-1]
 
+        # - Constructing ranges for different classes
         class_boundaries = []
         for idx, cls_th in enumerate(class_thresholds):
-
             if idx == 0:
                 class_boundaries.append((cls_min, cls_th))
             else:
                 class_boundaries.append((class_thresholds[idx - 1], cls_th))
         class_boundaries.append((class_thresholds[-1], cls_max))
 
-        for cls, cls_bndr in enumerate(class_boundaries):
-            data_df.loc[(data_df.loc[:, label] >= cls_bndr[0]) & (data_df.loc[:, label] < cls_bndr[1])] = cls
-        # - Fix the class for cls_max
-        data_df.loc[data_df.loc[:, label] == cls_max] = len(class_boundaries) - 1
+        # - Assign the classes based on boundaries
+        for cls_code, cls_bndr in zip(class_codes, class_boundaries):
+            x[np.argwhere(x >= cls_bndr[0]) & np.argwhere(x < cls_bndr[1])] = cls_code
+        # - Fix the class for cls_max, as it will not fit into the last range
+        # as the maximal value is not included in the range
+        x[np.argwhere(x == cls_max)] = class_boundaries[- 1][-1]
+
     else:
-        data_df.loc[:, label] = data_df.loc[:, label].apply(lambda x: np.argwhere(x == classes).flatten()[0])
-    return data_df
+        # - Divide into all possible classes
+        for cls_code, cls in zip(class_codes, classes):
+            x[np.argwhere(x == cls)] = cls_code
+
+    # - If to transfer it back to pd.DataFrame
+    if not as_array:
+        data.loc[:, label] = x
+        x = data
+    return x, classes, class_codes
 
 
 def run_cv(data_df: pd.DataFrame, classifier, n_folds: int, features: list, label: str, class_thresholds: list or None, data_dir: pathlib.Path, output_dir: pathlib.Path):
@@ -85,13 +121,13 @@ def run_cv(data_df: pd.DataFrame, classifier, n_folds: int, features: list, labe
         train_df = pd.read_csv(cv_root_dir / cv_dir / 'train_data.csv')
         X_train = train_df.loc[:, features]
         y_train = train_df.loc[:, [label]]
-        y_train = to_categorical(data_df=y_train, label=label, class_thresholds=class_thresholds)
+        y_train = to_categorical(data=y_train, label=label, class_thresholds=class_thresholds)
         model = train_classifier(X=X_train, y=y_train, classifier=classifier)
 
         test_df = pd.read_csv(cv_root_dir / cv_dir / 'test_data.csv')
         X_test = test_df.loc[:, features]
         y_test = test_df.loc[:, [label]]
-        y_test = to_categorical(data_df=y_test, label=label, class_thresholds=class_thresholds)
+        y_test = to_categorical(data=y_test, label=label, class_thresholds=class_thresholds)
 
         precision, recall, f1, _ = eval_classifier(X=X_test, y=y_test, model=model)
         results = pd.concat([results, pd.DataFrame(dict(precision=precision, recall=recall, f1=f1), index=pd.Index([0]))], ignore_index=True)

@@ -1,7 +1,7 @@
 import datetime
 import os
 import pathlib
-from model import run_ablation
+from model_regression import run_ablation
 import torch
 
 

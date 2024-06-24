@@ -58,7 +58,7 @@ sns.boxenplot(lbl_fps)
 # -- NIQE
 lbl_niqe = data.loc[:, 'NIQE']
 sns.histplot(lbl_niqe)#, stat='density')#, binwidth=10)
-sns.boxenplot(niqe)
+sns.boxenplot(lbl_niqe)
 
 
 # FEATURES
@@ -66,37 +66,27 @@ sns.boxenplot(niqe)
 feat_bw = data.loc[:, 'BW']
 x = np.arange(len(data))
 plt.plot(x, feat_bw)
-plt.xlabel('Sample')
-plt.ylabel('Bandwidth')
 sns.histplot(feat_bw)#, stat='density')#, binwidth=10)
 sns.boxenplot(feat_bw)
 # -- Latency
 feat_latency = data.loc[:, 'L']
 plt.plot(x, feat_latency)
-plt.xlabel('Sample')
-plt.ylabel('Latency')
 sns.histplot(feat_latency)
 sns.boxenplot(feat_latency)
 
 # -- Jitter
 feat_jitter = data.loc[:, 'J']
 plt.plot(x, feat_jitter)
-plt.xlabel('Sample')
-plt.ylabel('Jitter')
 sns.histplot(feat_jitter)
 sns.boxenplot(feat_jitter)
 # -- AVG time between packets
 feat_avg_tp = data.loc[:, 'ATP']
 plt.plot(x, feat_avg_tp)
-plt.xlabel('Sample')
-plt.ylabel('Avg. time between packets')
 sns.histplot(feat_avg_tp)
 sns.boxenplot(feat_avg_tp)
 # -- Packets lenght
 feat_pckt_len = data.loc[:, 'PL']
 plt.plot(x, feat_pckt_len)
-plt.xlabel('Sample')
-plt.ylabel('Packet Length')
 sns.histplot(feat_pckt_len)
 sns.boxenplot(feat_pckt_len)
 
@@ -137,7 +127,7 @@ R = 100 - N * 100 / L
 print(f'''
 Total before reduction: {L}
 Total after reduction: {N}
-> Precent reduced: {R:.3f}%
+> Reduced: {L - N} ({R:.3f}%)
     ''')
 
 
