@@ -597,7 +597,7 @@ if __name__ == '__main__':
     )
 
     # - Build the model
-    mdl = QoEModel(n_features=len(FEATURES), n_labels=len([LABEL]), n_layers=args.n_layers, n_units=args.n_units)
+    mdl = QoEModel2(n_features=len(FEATURES), n_labels=len([LABEL]), n_layers=args.n_layers, n_units=args.n_units)
     mdl.to(DEVICE)
 
     # - Optimizer

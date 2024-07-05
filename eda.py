@@ -13,6 +13,7 @@ plt.style.use('ggplot')
 
 DATA_ROOT = pathlib.Path('/Users/mchlsdrv/Desktop/PhD/QoE/data/zoom/encrypted_traffic/')
 data = pd.read_csv(DATA_ROOT / 'data.csv')
+data.head()
 data = data.rename(columns={
     'Bandwidth': 'BW',
     'Jitter': 'J',
@@ -68,6 +69,7 @@ x = np.arange(len(data))
 plt.plot(x, feat_bw)
 sns.histplot(feat_bw)#, stat='density')#, binwidth=10)
 sns.boxenplot(feat_bw)
+
 # -- Latency
 feat_latency = data.loc[:, 'L']
 plt.plot(x, feat_latency)
@@ -119,7 +121,7 @@ stats.zscore(data_norm_features)
 
 # OUTLIERS
 sns.boxenplot(data_norm_features)
-data_norm_features_no_outliers = data_norm_features.loc[(np.abs(stats.zscore(data_norm_features)) < 2).all(axis=1)]
+data_norm_features_no_outliers = data_norm_features.loc[(np.abs(stats.zscore(data_norm_features)) < 3).all(axis=1)]
 sns.boxenplot(data_norm_features_no_outliers)
 L = len(data_norm_features)
 N = len(data_norm_features_no_outliers)

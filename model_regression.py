@@ -93,6 +93,61 @@ class QoEDataset(torch.utils.data.Dataset):
         return x * self.labels_std + self.labels_mu
 
 
+class QoEModel2(torch.nn.Module):
+    def __init__(self, n_features, n_labels, n_layers, n_units):
+        super().__init__()
+        self.n_features = n_features
+        self.n_labels = n_labels
+        self.n_layers = n_layers
+        self.n_units = n_units
+        self.model = None
+        self.layers = torch.nn.ModuleList()
+        self._build()
+
+    def _add_layer(self, n_in, n_out, activation):
+        self.layers.append(
+            torch.nn.Sequential(
+                torch.nn.Linear(n_in, n_out),
+                torch.nn.BatchNorm1d(n_out),
+                activation()
+            )
+        )
+
+    def _build(self):
+        in_units = self.n_features
+        out_units = self.n_units
+        # - Down path
+        while out_units >= self.n_features:
+            # - Add a layer
+            self._add_layer(n_in=in_units, n_out=out_units, activation=torch.nn.SiLU)
+            in_units = out_units
+            out_units //= 2
+            if out_units < self.n_features:
+                out_units = self.n_features
+                break
+
+        while out_units < self.n_units:
+            in_units = out_units
+            out_units *= 2
+            if out_units > self.n_units:
+                out_units = self.n_units
+                break
+            # - Add a layer
+            self._add_layer(n_in=in_units, n_out=out_units, activation=torch.nn.SiLU)
+
+        self._add_layer(n_in=out_units, n_out=self.n_labels, activation=torch.nn.Tanh)
+
+        self.model = torch.nn.Sequential(*self.layers)
+
+    def forward(self, x, p_drop: float = 0.0):
+        x = self.model(x)
+        # for lyr in self.layers:
+        #     x = lyr(x)
+        x = torch.nn.functional.dropout(x, p=p_drop, training=self.training)
+
+        return x
+
+
 class QoEModel(torch.nn.Module):
     def __init__(self, n_features, n_labels, n_layers, n_units):
         super().__init__()
@@ -427,7 +482,7 @@ def run_ablation(test_data_root: pathlib.Path, data_dirs: list, features: list, 
                                     )
 
                                     # - Build the model
-                                    mdl = QoEModel(n_features=len(features), n_labels=len(labels), n_layers=n_layers, n_units=n_units)
+                                    mdl = QoEModel2(n_features=len(features), n_labels=len(labels), n_layers=n_layers, n_units=n_units)
                                     n_train_params, n_non_train_params = get_number_of_parameters(model=mdl)
                                     mdl.to(DEVICE)
 
@@ -612,8 +667,8 @@ VAL_PROP = 0.2
 
 # FEATURES = ['Bandwidth', 'pps', 'Jitter', 'packets length', 'Interval start', 'Latency', 'avg time between packets']
 FEATURES = ['Bandwidth', 'pps', 'packets length', 'avg time between packets']
-LABELS = ['NIQE']
-# LABELS = ['NIQE', 'Resolution', 'fps']
+# LABELS = ['NIQE']
+LABELS = ['NIQE', 'Resolution', 'fps']
 
 LOSS_FUNCTION = torch.nn.MSELoss()
 DEVICE = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
@@ -675,7 +730,7 @@ if __name__ == '__main__':
     )
 
     # - Build the model
-    mdl = QoEModel(n_features=len(FEATURES), n_labels=len(LABELS), n_layers=args.n_layers, n_units=args.n_units)
+    mdl = QoEModel2(n_features=len(FEATURES), n_labels=len(LABELS), n_layers=args.n_layers, n_units=args.n_units)
     mdl.to(DEVICE)
 
     # - Optimizer
