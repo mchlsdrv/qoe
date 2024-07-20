@@ -12,44 +12,31 @@ plt.style.use('ggplot')
 
 
 DATA_ROOT = pathlib.Path('/Users/mchlsdrv/Desktop/PhD/QoE/data/zoom/encrypted_traffic/')
-data = pd.read_csv(DATA_ROOT / 'data.csv')
-data.head()
-data = data.rename(columns={
-    'Bandwidth': 'BW',
-    'Jitter': 'J',
-    'Resolution': 'R',
-    'Latancy': 'L',
-    'avg time between packets': 'ATP',
-    'fps': 'FPS',
-    'pps': 'PPS',
-    'packets length': 'PL',
-    'Interval start': 'IS',
-    'Src_Port': 'SP',
-    'Dest_Port': 'DP',
-})
-data = data.loc[~data.isna().loc[:, 'BW']]
-data.head()
-data = data.astype({
-    'BW': np.float32,
-    'J': np.float32,
-    'R': np.int16,
-    'L': np.float32,
-    'ATP': np.float32,
-    'FPS': np.int16,
-    'PPS': np.int16,
-    'PL': np.int16,
-    'IS': np.int16,
-    'SP': np.int16,
-    'DP': np.int16,
-})
-data.to_csv(DATA_ROOT / 'data_no_nan.csv')
+data_file_name = 'data_clean.csv'
+data = pd.read_csv(DATA_ROOT / data_file_name)
+data.loc[:, 'R']
 data.head()
 data.describe()
 
 # LABELS
 # -- Resolution
 lbl_r = data.loc[:, 'R']
-sns.displot(lbl_r)
+
+res_order = [
+    '320x180',
+    '480x270',
+    '640x360',
+    '800x450',
+    '960x540',
+    '1120x630',
+    '1280x720',
+]
+data.loc[:, 'R'] = pd.Categorical(data['R'], categories=res_order)
+data.head()
+res_order
+g = sns.displot(lbl_r, col_order=res_order)
+plt.xticks(res_order, rotation=30)
+
 sns.boxenplot(lbl_r)
 
 # -- FPS
@@ -101,6 +88,16 @@ data_norm.describe()
 sns.boxenplot(data_norm)
 data_norm.head()
 
+data_mean_log = np.log(data_norm)
+sns.boxenplot(data_mean_log)
+data_mean_sqrt = np.sqrt(data_norm)
+sns.boxenplot(data_mean_sqrt)
+data_mean_cbrt = np.cbrt(data_norm)
+sns.boxenplot(data_mean_cbrt)
+data_mean_cbrt.to_csv(DATA_ROOT / 'data_norm_cbrt.csv', index=False)
+# - Corralation
+data_cbrt_corr = data_mean_cbrt.corr()
+data_cbrt_corr
 # - Corralation
 data_corr = data_norm.corr()
 data_corr
