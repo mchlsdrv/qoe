@@ -3,6 +3,7 @@ import pathlib
 import numpy as np
 import pandas as pd
 import seaborn as sns
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 from sklearn.metrics import confusion_matrix
 from sklearn.decomposition import PCA
@@ -22,7 +23,17 @@ data.describe()
 # -- Resolution
 lbl_r = data.loc[:, 'R']
 
-res_order = [
+data.loc[:, 'R'] = pd.Categorical(data['R'], categories=res_order)
+data.head()
+res_order
+
+fig, ax = plt.subplots()
+hist_vals
+
+niqe_hist_vals, niqe_hist_bins = np.histogram(lbl_niqe)
+fps_hist_vals, fps_hist_bins = np.histogram(lbl_fps)
+res_hist_vals = lbl_r.value_counts()[::-1]
+res_hist_bins = [
     '320x180',
     '480x270',
     '640x360',
@@ -31,11 +42,25 @@ res_order = [
     '1120x630',
     '1280x720',
 ]
-data.loc[:, 'R'] = pd.Categorical(data['R'], categories=res_order)
-data.head()
-res_order
-g = sns.displot(lbl_r, col_order=res_order)
-plt.xticks(res_order, rotation=30)
+
+fps_hist_bins
+mpl.rcParams.update({'font.size': 22})
+fig, ax = plt.subplots(1, 3, figsize=(40, 10))
+
+ax[0].bar(niqe_hist_bins[:-1], niqe_hist_vals)
+ax[0].set(title='NIQE')
+
+ax[1].bar(fps_hist_bins[:-1], fps_hist_vals)
+ax[1].set_xticks(labels=np.round(fps_hist_bins[:-1], 1), ticks=fps_hist_bins[:-1])
+ax[1].set(title='FPS')
+
+ax[2].bar(res_hist_bins, res_hist_vals)
+ax[2].set_xticks(labels=res_hist_bins, ticks=res_hist_bins, rotation=30)
+ax[2].set(title='R')
+plt.show()
+fig.savefig(DATA_ROOT / 'label_hist.png')
+sns.displot(lbl_r, ax=ax, col_order=res_order)
+
 
 sns.boxenplot(lbl_r)
 

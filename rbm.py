@@ -1,4 +1,11 @@
-import torch
+import pathlib
+import numpy as np
+from sklearn.linear_model import LogisticRegression
+import torch.utils.data
+import torchvision.datasets
+import torchvision.models
+import torchvision.transforms
+from tqdm import tqdm
 
 
 class RBM(torch.nn.Module):
@@ -82,13 +89,13 @@ class RBM(torch.nn.Module):
         pos_associations = torch.matmul(inputs.T, pos_hidden_acts)
 
         # - Negative phase
-        hid_acts = pos_hidden_acts
+        hidden_acts = pos_hidden_acts
 
-        visible_probs = self.sample_visible(hid_acts)
+        visible_probs = self.sample_visible(hidden_acts)
         hidden_probs = self.sample_hidden(visible_probs)
         hidden_acts = torch.as_tensor(hidden_probs >= self._get_random_probabilities(self.n_hidden_units)).float()
         for step in range(self.k_gibbs_steps - 1):
-            visible_probs = self.sample_visible(hid_acts)
+            visible_probs = self.sample_visible(hidden_acts)
             hidden_probs = self.sample_hidden(visible_probs)
             hidden_acts = torch.as_tensor(hidden_probs >= self._get_random_probabilities(self.n_hidden_units)).float()
 
@@ -107,10 +114,94 @@ class RBM(torch.nn.Module):
         )
 
         # - Error computation
-        error = torch.sum((input - neg_visible_probs)**2)
+        error = torch.sum((inputs - neg_visible_probs)**2)
 
         return error
 
 
+BATCH_SIZE = 64
+VISIBLE_UNITS = 784  # 28 X 28 IMAGES
+HIDDEN_UNITS = 128
+K_GIBBS_STEPS = 2
+LR = 1e-3
+MOMENTUM = 0.5
+WEIGHT_DECAY = 1e-4
+EPOCHS = 10
+DATA_FOLDER = '/Users/mchlsdrv/Desktop/PhD/QoE/data/mnist'
+DEVICE = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
+
+if __name__ == '__main__':
+    train_ds = torchvision.datasets.MNIST(root=DATA_FOLDER, train=True, transform=torchvision.transforms.ToTensor(), download=True)
+    train_dl = torch.utils.data.DataLoader(train_ds, batch_size=BATCH_SIZE)
+
+    test_ds = torchvision.datasets.MNIST(root=DATA_FOLDER, train=False, transform=torchvision.transforms.ToTensor(), download=True)
+    test_dl = torch.utils.data.DataLoader(test_ds, batch_size=BATCH_SIZE)
+
+    print('With RBM:')
+    print('> Training... ')
+
+    mdl = RBM(
+        n_visible_units=VISIBLE_UNITS,
+        n_hidden_units=HIDDEN_UNITS,
+        k_gibbs_steps=K_GIBBS_STEPS,
+        lr=LR,
+        momentum=MOMENTUM,
+        weight_decay=WEIGHT_DECAY,
+        device=DEVICE
+    )
+
+    for epch in tqdm(range(EPOCHS)):
+        epch_err = 0.0
+
+        for btch, _ in train_dl:
+            btch = btch.view(len(btch), VISIBLE_UNITS)
+
+            btch_err = mdl.calc_contrastive_divergence(btch)
+
+            epch_err += btch_err
+
+        print(f'Epoch #{epch} Error: {epch_err:.3f}')
+
+        print('> Extracting features...')
+        train_feats = np.zeros((len(train_ds), HIDDEN_UNITS))
+        train_lbls = np.zeros(len(train_ds))
+        test_feats = np.zeros((len(test_ds), HIDDEN_UNITS))
+        test_lbls = np.zeros(len(test_ds))
+
+        for idx, (btch, lbls) in enumerate(train_dl):
+            btch = btch.view(len(btch), VISIBLE_UNITS)  # flatten input data
+
+            btch = btch.to(DEVICE)
+
+            train_feats[idx * BATCH_SIZE:idx * BATCH_SIZE + len(btch)] = mdl.sample_hidden(btch).cpu().numpy()
+            train_lbls[idx * BATCH_SIZE:idx * BATCH_SIZE + len(btch)] = lbls.numpy()
+
+        for idx, (btch, lbls) in enumerate(test_dl):
+            btch = btch.view(len(btch), VISIBLE_UNITS)  # flatten input data
+
+            btch = btch.to(DEVICE)
+
+            test_feats[idx * BATCH_SIZE:idx * BATCH_SIZE + len(btch)] = mdl.sample_hidden(btch).cpu().numpy()
+            test_lbls[idx * BATCH_SIZE:idx * BATCH_SIZE + len(btch)] = lbls.numpy()
+
+
+        print('> Classifying...')
+        clf = LogisticRegression()
+        clf.fit(train_feats, train_lbls)
+        preds = clf.predict(test_feats)
+
+        n_correct, n_total = np.sum(preds == test_lbls), len(test_lbls)
+        print(f'> Results: {n_correct} / {n_total} ({100 * n_correct / n_total:.2f}% success)')
+
+    print('Without RBM:')
+    print('> Classifying...')
+    clf = LogisticRegression()
+    train_feats_orig, train_lbls_orig = train_ds.data.view((-1, 28 * 28)), train_ds.train_labels
+    clf.fit(train_feats_orig, train_lbls_orig)
+    test_feats_orig, test_lbls_orig = test_ds.data.view((-1, 28 * 28)).numpy(), test_ds.test_labels.numpy()
+    preds = clf.predict(test_feats_orig)
+
+    n_correct, n_total = np.sum(preds == test_lbls_orig), len(test_lbls_orig)
+    print(f'Results: {n_correct} / {n_total} ({100 * n_correct / n_total:.2f}% success)')
 

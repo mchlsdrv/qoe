@@ -58,15 +58,24 @@ def run_cv(data_df: pd.DataFrame, regressor, n_folds: int, features: list, label
         y_test = test_df.loc[:, [label]].values
 
         preds, errors = eval_regressor(X=X_test, y=y_test, model=model)
-        results = pd.concat([results, pd.DataFrame(dict(true=y_test.flatten(), predicted=preds, errors=errors))], ignore_index=True)
+        results = pd.concat([
+            results,
+            pd.DataFrame(
+                {
+                    'true': y_test.flatten(),
+                    'predicted': preds,
+                    'error (%)': errors
+                }
+            )
+        ], ignore_index=True)
 
     if isinstance(output_dir, pathlib.Path):
         results.to_csv(output_dir / 'final_results.csv')
-    mean_errors = results.loc[:, "errors"].mean()
+    mean_error = results.loc[:, "error (%)"].mean()
     print(f'''
 Mean Stats on {n_folds} CV for {label}:
     Mean Errors (%)
     ---------------
-    {mean_errors:.3f}
+    {mean_error:.3f}
     ''')
     return results
