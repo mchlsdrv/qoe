@@ -64,6 +64,7 @@ def run_train(
         btch_pbar = tqdm.tqdm(train_data_loader)
         for (X, Y) in btch_pbar:
             X = X.to(device)
+            Y = Y.to(device)
             results = model(X, p_drop=p_drop)
             loss = loss_function(results, Y)
 
@@ -86,6 +87,7 @@ def run_train(
         with torch.no_grad():
             for (X, Y) in val_data_loader:
                 X = X.to(device)
+                Y = Y.to(device)
                 results = model(X)
                 loss = loss_function(results, Y)
                 btch_val_losses = np.append(btch_val_losses, loss.item())
@@ -120,6 +122,7 @@ def run_test(model: torch.nn.Module, data_loader: torch.utils.data.DataLoader, d
     test_results = pd.DataFrame()
     for (X, Y) in data_loader:
         X = X.to(device)
+        Y = Y.to(device)
         btch_preds = model(X)
 
         for y, pred in zip(Y, btch_preds):
