@@ -274,7 +274,7 @@ def run_ablation(test_data_root: pathlib.Path, data_dirs: list, features: list, 
 
         print(f'\t - Data folders: {data_folder} - {fldr_idx + 1}/{cv_folds} ({100 * (fldr_idx + 1) / cv_folds:.2f}% done)')
 
-        # - Get the train / test cv_5_folds
+        # - Get the train / train_test cv_5_folds
         train_data_df = pd.read_csv(data_folder / 'train_data.csv')
         _, train_pca = run_pca(dataset_df=train_data_df.loc[:, features])
         test_data_df = pd.read_csv(data_folder / 'test_data.csv')
@@ -369,7 +369,7 @@ def run_ablation(test_data_root: pathlib.Path, data_dirs: list, features: list, 
                                     plt.savefig(train_save_dir / 'train_val_loss.png')
                                     plt.close()
 
-                                    # - Get the test dataloader
+                                    # - Get the train_test dataloader
                                     test_ds = QoEDataset(
                                         data_df=test_data_df,
                                         feature_columns=features,
@@ -388,10 +388,10 @@ def run_ablation(test_data_root: pathlib.Path, data_dirs: list, features: list, 
                                     # - Test the model
                                     metrics, results = run_test(model=mdl, data_loader=test_dl, device=DEVICE)
 
-                                    # - Save the test metadata
+                                    # - Save the train_test metadata
                                     results.to_csv(train_save_dir / f'test_results.csv', index=False)
 
-                                    # - Save the test metadata
+                                    # - Save the train_test metadata
                                     metrics.to_csv(train_save_dir / f'test_metrics.csv', index=False)
 
                                     test_res = pd.DataFrame()
@@ -413,7 +413,7 @@ def run_ablation(test_data_root: pathlib.Path, data_dirs: list, features: list, 
 
                                     test_res.to_csv(train_save_dir / 'test_metadata.csv', index=False)
 
-                                    # - Add the configuration test metadata to the global test metadata
+                                    # - Add the configuration train_test metadata to the global train_test metadata
                                     test_metadata = pd.concat([test_metadata, test_res]).reset_index(drop=True)
 
                                     # - Save the final metadata and the results
@@ -440,7 +440,7 @@ def run_ablation(test_data_root: pathlib.Path, data_dirs: list, features: list, 
                                     # -- Add the errors to the configuration results
                                     configuration_results = pd.concat([configuration_results, pd.DataFrame(metrics.abs().mean()).T], axis=1)
 
-                                    # - Add the results for the current configuration to the final ablation results
+                                    # - Add the results for the current configuration to the final parameter_selection results
                                     ablation_results = pd.concat([ablation_results, configuration_results], axis=0).reset_index(drop=True)
 
                                     # - Save the final metadata and the results
@@ -494,7 +494,7 @@ def get_arg_parser():
     parser.add_argument('--batch_size', type=int, default=BATCH_SIZE, help='The number of samples in each batch')
     parser.add_argument('--val_prop', type=float, default=VAL_PROP, help=f'The proportion of the data which will be set aside, and be used in the process of validation')
     parser.add_argument('--train_data_file', type=str, default=TRAIN_DATA_FILE, help='The path to the train data file')
-    parser.add_argument('--test_data_file', type=str, default=TEST_DATA_FILE, help='The path to the test data file')
+    parser.add_argument('--test_data_file', type=str, default=TEST_DATA_FILE, help='The path to the train_test data file')
     parser.add_argument('--output_dir', type=str, default=OUTPUT_DIR, help='The path to the directory where the outputs will be placed')
 
     return parser
@@ -521,10 +521,10 @@ LABEL = 'Resolution'
 
 LOSS_FUNCTION = torch.nn.CrossEntropyLoss()
 DEVICE = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
-TRAIN_DATA_FILE = pathlib.Path('/Users/mchlsdrv/Desktop/PhD/QoE/data/zoom/encrypted_traffic/test/train_data.csv')
+TRAIN_DATA_FILE = pathlib.Path('/Users/mchlsdrv/Desktop/PhD/QoE/data/zoom/encrypted_traffic/train_test/train_data.csv')
 # TRAIN_DATA_FILE = pathlib.Path('/Users/mchlsdrv/Desktop/PhD/QoE/data/zoom/encrypted_traffic/data_norm_no_outliers_pca.csv')
-TEST_DATA_FILE = pathlib.Path('/Users/mchlsdrv/Desktop/PhD/QoE/data/zoom/encrypted_traffic/test/test_data.csv')
-OUTPUT_DIR = pathlib.Path('/Users/mchlsdrv/Desktop/PhD/QoE/data/zoom/encrypted_traffic/test/output')
+TEST_DATA_FILE = pathlib.Path('/Users/mchlsdrv/Desktop/PhD/QoE/data/zoom/encrypted_traffic/train_test/test_data.csv')
+OUTPUT_DIR = pathlib.Path('/Users/mchlsdrv/Desktop/PhD/QoE/data/zoom/encrypted_traffic/train_test/output')
 
 # N = np.array([18.159685, 18.076567, 18.084219, 18.085821, 18.081762, 18.131533,
 #        18.16927 , 18.58294 , 18.383863, 18.670801, 18.286472, 18.302538,

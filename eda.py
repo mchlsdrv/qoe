@@ -15,7 +15,6 @@ plt.style.use('ggplot')
 DATA_ROOT = pathlib.Path('/Users/mchlsdrv/Desktop/PhD/QoE/data/zoom/encrypted_traffic/')
 data_file_name = 'data_clean.csv'
 data = pd.read_csv(DATA_ROOT / data_file_name)
-data.loc[:, 'R']
 data.head()
 data.describe()
 
@@ -23,9 +22,8 @@ data.describe()
 # -- Resolution
 lbl_r = data.loc[:, 'R']
 
-data.loc[:, 'R'] = pd.Categorical(data['R'], categories=res_order)
+data.loc[:, 'R'] = pd.Categorical(data['R'])
 data.head()
-res_order
 
 fig, ax = plt.subplots()
 hist_vals
@@ -70,7 +68,15 @@ sns.histplot(lbl_fps)
 sns.boxenplot(lbl_fps)
 # -- NIQE
 lbl_niqe = data.loc[:, 'NIQE']
+fctr = (lbl_niqe.max() - lbl_niqe.min())
+scaled_lbl = (lbl_niqe / fctr)
+scaled_lbl
+lbl_niqe /= 5
+lbl_niqe = np.floor(lbl_niqe)
+lbl_niqe.describe()
+9.5 % 5
 sns.histplot(lbl_niqe)#, stat='density')#, binwidth=10)
+sns.histplot(scaled_lbl)#, stat='density')#, binwidth=10)
 sns.boxenplot(lbl_niqe)
 
 

@@ -1,15 +1,15 @@
 import datetime
 import os
 import pathlib
-from model_regression import run_ablation
+from utils.train_utils import run_cv
 import torch
 
 
 if __name__ == '__main__':
     TS = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    ABLATION_ROOT = pathlib.Path('/Users/mchlsdrv/Desktop/PhD/QoE/data/zoom/encrypted_traffic')
-    DATA_ROOT = ABLATION_ROOT / 'cv_10_folds'
-    SAVE_DIR = ABLATION_ROOT / f'outputs_{TS}'
+    CV_ROOT = pathlib.Path('/Users/mchlsdrv/Desktop/PhD/QoE/data/zoom/encrypted_traffic')
+    DATA_ROOT = CV_ROOT / 'cv_10_folds'
+    SAVE_DIR = CV_ROOT / f'outputs_{TS}'
     os.makedirs(SAVE_DIR)
 
     DATA_DIRS = ['test0', 'test1', 'test2', 'test3', 'test4', 'test5', 'test6', 'test7', 'test8', 'test9']
@@ -26,7 +26,7 @@ if __name__ == '__main__':
     # LABELS = ['NIQE']
     LABELS = ['NIQE', 'Resolution', 'fps']
 
-    run_ablation(
+    run_cv(
         test_data_root=DATA_ROOT,
         data_dirs=DATA_DIRS,
         features=FEATURES,

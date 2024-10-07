@@ -23,7 +23,7 @@ def train_classifier(X, y, classifier):
 
 
 def eval_classifier(X, y, model):
-    # - Predict the test data
+    # - Predict the train_test data
     y_pred = model.predict(X.values)
     precision, recall, f1, support = precision_recall_fscore_support(y.values.flatten(), y_pred)
     precision = precision.mean()

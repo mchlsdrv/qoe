@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 
 
-DATA_FILE = pathlib.Path('/Users/mchlsdrv/Desktop/QoE/data/zoom/encrypted_traffic/ablation/outputs_2024-04-15_14-51-35/ablation_final_results_tmp.csv')
+DATA_FILE = pathlib.Path('/Users/mchlsdrv/Desktop/QoE/data/zoom/encrypted_traffic/parameter_selection/outputs_2024-04-15_14-51-35/ablation_final_results_tmp.csv')
 DATA_FILE.is_file()
 
 data_df = pd.read_csv(DATA_FILE)

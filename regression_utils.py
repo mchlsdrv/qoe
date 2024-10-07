@@ -26,7 +26,7 @@ def train_regressor(X, y, regressor):
 
 
 def eval_regressor(X, y, model):
-    # - Predict the test data
+    # - Predict the train_test data
     y_pred = model.predict(X)
 
     errors = calc_errors(true=y, predicted=y_pred)

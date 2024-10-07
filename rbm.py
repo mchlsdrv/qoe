@@ -1,11 +1,26 @@
-import pathlib
+import warnings
 import numpy as np
+import pandas as pd
+import sklearn.metrics
+import torchvision
 from sklearn.linear_model import LogisticRegression
 import torch.utils.data
-import torchvision.datasets
-import torchvision.models
-import torchvision.transforms
 from tqdm import tqdm
+
+from qoe.configs.params import (
+    DEVICE,
+    DATA_FOLDER,
+    BATCH_SIZE,
+    RBM_VISIBLE_UNITS,
+    RBM_HIDDEN_UNITS,
+    RBM_K_GIBBS_STEPS,
+    LR,
+    MOMENTUM,
+    WEIGHT_DECAY,
+    EPOCHS
+)
+
+warnings.filterwarnings('ignore')
 
 
 class RBM(torch.nn.Module):
@@ -103,32 +118,79 @@ class RBM(torch.nn.Module):
         neg_hidden_probs = hidden_probs
         neg_associations = torch.matmul(neg_visible_probs.T, neg_hidden_probs)
 
-        # - Optimization step
-        self._opt_step(
-            inputs=inputs,
-            positive_associations=pos_associations,
-            negative_associations=neg_associations,
-            negative_visible_probabilities=neg_visible_probs,
-            positive_hidden_probabilities=pos_hidden_probs,
-            negative_hidden_probabilities=neg_hidden_probs,
-        )
-
         # - Error computation
         error = torch.sum((inputs - neg_visible_probs)**2)
 
-        return error
+        return error, pos_associations, neg_associations, neg_visible_probs, pos_hidden_probs, neg_hidden_probs
 
+    def fit(self, train_ds: torch.utils.data.Dataset, test_ds: torch.utils.data.Dataset, epochs: int, batch_size: int):
+        train_dl = torch.utils.data.DataLoader(train_ds, batch_size=batch_size)
+        test_dl = torch.utils.data.DataLoader(test_ds, batch_size=batch_size)
+        train_feats = np.zeros((len(train_ds), self.n_hidden_units))
+        train_lbls = np.zeros(len(train_ds))
 
-BATCH_SIZE = 64
-VISIBLE_UNITS = 784  # 28 X 28 IMAGES
-HIDDEN_UNITS = 128
-K_GIBBS_STEPS = 2
-LR = 1e-3
-MOMENTUM = 0.5
-WEIGHT_DECAY = 1e-4
-EPOCHS = 10
-DATA_FOLDER = '/Users/mchlsdrv/Desktop/PhD/QoE/data/mnist'
-DEVICE = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+        for epch in tqdm(range(epochs)):
+            epch_err = 0.0
+
+            for btch, _ in train_dl:
+                btch = btch.view(len(btch), self.n_visible_units)
+
+                btch_err, pos_associations, neg_associations, neg_visible_probs, pos_hidden_probs, neg_hidden_probs = self.calc_contrastive_divergence(btch)
+
+                # - Optimization step
+                self._opt_step(
+                    inputs=btch,
+                    positive_associations=pos_associations,
+                    negative_associations=neg_associations,
+                    negative_visible_probabilities=neg_visible_probs,
+                    positive_hidden_probabilities=pos_hidden_probs,
+                    negative_hidden_probabilities=neg_hidden_probs,
+                )
+
+                epch_err += btch_err
+
+            print(f'\nEpoch #{epch} Error: {epch_err:.3f}')
+
+            print('> Extracting features ...')
+            train_feats = np.zeros((len(train_ds), self.n_hidden_units))
+            train_lbls = np.zeros(len(train_ds))
+            test_feats = np.zeros((len(test_ds), self.n_hidden_units))
+            test_lbls = np.zeros(len(test_ds))
+
+            btch: torch.Tensor
+            for idx, (btch, lbls) in enumerate(train_dl):
+                btch = btch.view(len(btch), self.n_visible_units)  # flatten input data
+
+                btch = btch.to(DEVICE)
+
+                train_feats[idx * batch_size:idx * batch_size + len(btch)] = self.sample_hidden(btch).cpu().numpy()
+                train_lbls[idx * batch_size:idx * batch_size + len(btch)] = lbls.numpy().flatten()
+
+            for idx, (btch, lbls) in enumerate(test_dl):
+                btch = btch.view(len(btch), self.n_visible_units)  # flatten input data
+
+                btch = btch.to(DEVICE)
+
+                test_feats[idx * batch_size:idx * batch_size + len(btch)] = self.sample_hidden(btch).cpu().numpy()
+                test_lbls[idx * batch_size:idx * batch_size + len(btch)] = lbls.numpy().flatten()
+
+            # mse = sklearn.metrics.mean_squared_error(train_fea)
+            print('> Classifying ...')
+            clf = LogisticRegression()
+            clf.fit(train_feats, np.floor(train_lbls))
+            preds = clf.predict(test_feats)
+
+            n_correct, n_total = np.sum(preds == np.floor(test_lbls)), len(test_lbls)
+            print(f'''
+=================================================================
+ Results: {n_correct} / {n_total} ({100 * n_correct / n_total:.2f}% success)
+=================================================================
+        ''')
+
+        data_df = pd.DataFrame(train_feats)
+        data_df['label'] = train_lbls
+
+        return data_df
 
 
 if __name__ == '__main__':
@@ -138,70 +200,42 @@ if __name__ == '__main__':
     test_ds = torchvision.datasets.MNIST(root=DATA_FOLDER, train=False, transform=torchvision.transforms.ToTensor(), download=True)
     test_dl = torch.utils.data.DataLoader(test_ds, batch_size=BATCH_SIZE)
 
-    print('With RBM:')
+    print('\nWith RBM:')
     print('> Training... ')
 
     mdl = RBM(
-        n_visible_units=VISIBLE_UNITS,
-        n_hidden_units=HIDDEN_UNITS,
-        k_gibbs_steps=K_GIBBS_STEPS,
+        n_visible_units=RBM_VISIBLE_UNITS,
+        n_hidden_units=RBM_HIDDEN_UNITS,
+        k_gibbs_steps=RBM_K_GIBBS_STEPS,
         lr=LR,
         momentum=MOMENTUM,
         weight_decay=WEIGHT_DECAY,
         device=DEVICE
     )
 
-    for epch in tqdm(range(EPOCHS)):
-        epch_err = 0.0
+    mdl.fit(
+        train_ds=train_ds,
+        test_ds=test_ds,
+        epochs=EPOCHS,
+        batch_size=BATCH_SIZE
+    )
 
-        for btch, _ in train_dl:
-            btch = btch.view(len(btch), VISIBLE_UNITS)
-
-            btch_err = mdl.calc_contrastive_divergence(btch)
-
-            epch_err += btch_err
-
-        print(f'Epoch #{epch} Error: {epch_err:.3f}')
-
-        print('> Extracting features...')
-        train_feats = np.zeros((len(train_ds), HIDDEN_UNITS))
-        train_lbls = np.zeros(len(train_ds))
-        test_feats = np.zeros((len(test_ds), HIDDEN_UNITS))
-        test_lbls = np.zeros(len(test_ds))
-
-        for idx, (btch, lbls) in enumerate(train_dl):
-            btch = btch.view(len(btch), VISIBLE_UNITS)  # flatten input data
-
-            btch = btch.to(DEVICE)
-
-            train_feats[idx * BATCH_SIZE:idx * BATCH_SIZE + len(btch)] = mdl.sample_hidden(btch).cpu().numpy()
-            train_lbls[idx * BATCH_SIZE:idx * BATCH_SIZE + len(btch)] = lbls.numpy()
-
-        for idx, (btch, lbls) in enumerate(test_dl):
-            btch = btch.view(len(btch), VISIBLE_UNITS)  # flatten input data
-
-            btch = btch.to(DEVICE)
-
-            test_feats[idx * BATCH_SIZE:idx * BATCH_SIZE + len(btch)] = mdl.sample_hidden(btch).cpu().numpy()
-            test_lbls[idx * BATCH_SIZE:idx * BATCH_SIZE + len(btch)] = lbls.numpy()
-
-
-        print('> Classifying...')
-        clf = LogisticRegression()
-        clf.fit(train_feats, train_lbls)
-        preds = clf.predict(test_feats)
-
-        n_correct, n_total = np.sum(preds == test_lbls), len(test_lbls)
-        print(f'> Results: {n_correct} / {n_total} ({100 * n_correct / n_total:.2f}% success)')
-
+    print('**************')
     print('Without RBM:')
-    print('> Classifying...')
+    print('**************')
     clf = LogisticRegression()
     train_feats_orig, train_lbls_orig = train_ds.data.view((-1, 28 * 28)), train_ds.train_labels
+
+    print('> Training ...')
     clf.fit(train_feats_orig, train_lbls_orig)
     test_feats_orig, test_lbls_orig = test_ds.data.view((-1, 28 * 28)).numpy(), test_ds.test_labels.numpy()
+
+    print('> Classifying ...')
     preds = clf.predict(test_feats_orig)
 
     n_correct, n_total = np.sum(preds == test_lbls_orig), len(test_lbls_orig)
-    print(f'Results: {n_correct} / {n_total} ({100 * n_correct / n_total:.2f}% success)')
-
+    print(f'''
+=================================================================
+ Results: {n_correct} / {n_total} ({100 * n_correct / n_total:.2f}% success)
+=================================================================
+            ''')

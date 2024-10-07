@@ -67,7 +67,7 @@ y.loc[:, 'R'] = y.loc[:, 'R'].apply(lambda x: 0 if x <= 800 else 1)
 # y.loc[:, 'R'] = y.loc[:, 'R'].apply(lambda x: np.argwhere(res == x).flatten()[0])
 np.unique(y.values)
 
-# - Split into train / test
+# - Split into train / train_test
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1)
 X_train
 y_train
@@ -77,7 +77,7 @@ dct = DecisionTreeClassifier(max_depth=len(res))
 # - Fit the model on the train data
 dct.fit(X_train.values, y_train.values)
 
-# - Predict the test data
+# - Predict the train_test data
 y_pred = dct.predict(X_test)
 
 precision, recall, f1, support = precision_recall_fscore_support(y_test, y_pred)
