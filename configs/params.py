@@ -20,7 +20,7 @@ CV_10_DATA_ROOT_DIR = DATA_ROOT_DIR / 'cv_10_folds'
 TRAIN_DATA_FILE = DATA_ROOT_DIR / 'train_test/train_data.csv'
 TEST_DATA_FILE = DATA_ROOT_DIR / 'train_test/test_data.csv'
 
-ROOT_DIR = pathlib.Path('/Users/mchlsdrv/Desktop/BGU/PhD/QoE/Code/qoe')
+ROOT_DIR = pathlib.Path('./')
 OUTPUT_DIR = ROOT_DIR / 'outputs'
 
 FEATURES = ['Bandwidth', 'pps', 'packets length', 'avg time between packets']
