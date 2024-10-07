@@ -263,7 +263,10 @@ if __name__ == '__main__':
     # train_data_df.loc[:, FEATURES], train_pca = run_pca(dataset_df=train_data_df.loc[:, FEATURES])
     train_pca = None
 
-    train_df, val_df = get_train_val_split(train_data_df, validation_proportion=args.val_prop)
+    train_df, val_df = get_train_val_split(
+        train_data_df,
+        validation_proportion=args.val_prop
+    )
 
     # - Dataset
     train_ds = QoEDataset(
@@ -356,7 +359,9 @@ if __name__ == '__main__':
     test_ds = QoEDataset(
         data_df=test_data_df,
         feature_columns=FEATURES,
-        label_columns=LABELS,
+        label_columns=FEATURES,
+        # label_columns=LABELS,
+        normalize_labels=True,
         pca=train_pca,
         remove_outliers=False
     )
