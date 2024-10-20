@@ -32,7 +32,7 @@ def run_train(
         train_data_loader: torch.utils.data.DataLoader, val_data_loader: torch.utils.data.DataLoader,
         loss_function: torch.nn, optimizer: torch.optim,
         lr_reduce_frequency: int, lr_reduce_factor: float = 1.0,
-        dropout_epoch_start: int = 20, dropout_epoch_delta: int = 20, p_dropout_init: float = 0.1,
+        dropout_epoch_start: int = 20, dropout_epoch_delta: int = 20, p_dropout_init: float = 0.1, p_dropout_max: float = 0.5,
         checkpoint_file: pathlib.Path = None,
         checkpoint_save_frequency: int = 10,
         device: torch.device = torch.device('cpu'),
@@ -56,8 +56,8 @@ def run_train(
 
     for epch in range(epochs):
         model.train(True)
-        if epch > dropout_epoch_start:
-            p_drop = p_dropout_init * (epch // dropout_epoch_start)
+        if epch > dropout_epoch_start and p_drop < p_dropout_max:
+            p_drop = p_dropout_init * ((epch - dropout_epoch_start + dropout_epoch_delta) // dropout_epoch_delta)
         print(f'Epoch: {epch}/{epochs} ({100 * epch / epochs:.2f}% done)')
         print(f'\t ** INFO ** p_drop = {p_drop:.4f}')
         btch_train_losses = np.array([])
@@ -120,27 +120,29 @@ def run_train(
 
 def run_test(model: torch.nn.Module, data_loader: torch.utils.data.DataLoader, device: torch.device = torch.device('cpu')):
     test_results = pd.DataFrame()
-    for (X, Y) in data_loader:
-        X = X.to(device)
-        Y = Y.to(device)
-        btch_preds = model(X)
+    model.eval()
+    with torch.no_grad():
+        for (X, Y) in data_loader:
+            X = X.to(device)
+            Y = Y.to(device)
+            btch_preds = model(X)
 
-        for y, pred in zip(Y, btch_preds):
-            d = dict()
+            for y, pred in zip(Y, btch_preds):
+                d = dict()
 
-            # - Add labels
-            for i, y_val in enumerate(y):
-                d[f'true_{i}'] = np.float32(y_val.numpy())
+                # - Add labels
+                for i, y_val in enumerate(y):
+                    d[f'true_{i}'] = np.float32(y_val.cpu().numpy())
 
-            # - Add preds
-            for i, pred_val in enumerate(pred):
-                d[f'pred_{i}'] = np.float32(pred_val.detach().numpy())
+                # - Add preds
+                for i, pred_val in enumerate(pred):
+                    d[f'pred_{i}'] = np.float32(pred_val.detach().cpu().numpy())
 
-            # - Create the cv_5_folds frame
-            btch_results = pd.DataFrame(d, index=pd.Index([0]))
+                # - Create the cv_5_folds frame
+                btch_results = pd.DataFrame(d, index=pd.Index([0]))
 
-            # - Add the batch cv_5_folds frame to the total results
-            test_results = pd.concat([test_results, btch_results])
+                # - Add the batch cv_5_folds frame to the total results
+                test_results = pd.concat([test_results, btch_results])
 
     test_results = test_results.reset_index(drop=True)
 

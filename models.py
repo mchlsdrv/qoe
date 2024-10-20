@@ -254,7 +254,7 @@ if __name__ == '__main__':
     os.makedirs(args.output_dir, exist_ok=True)
 
     # - Create the train directory
-    train_save_dir = args.output_dir / f'{args.desc}_{args.epochs}_epochs_{TS}'
+    train_save_dir = args.output_dir / f'{args.desc}_{len(FEATURES)}x{len(FEATURES) * AUTO_ENCODER_CODE_LENGTH_PROPORTION}_{args.epochs}_epochs_{TS}'
     os.makedirs(train_save_dir)
 
     # - Get the cv_5_folds
@@ -344,6 +344,7 @@ if __name__ == '__main__':
         dropout_epoch_start=args.dropout_start,
         dropout_epoch_delta=args.dropout_delta,
         p_dropout_init=args.dropout_p,
+        p_dropout_max=args.dropout_p_max,
         save_dir=train_save_dir,
         device=DEVICE
     )
@@ -376,10 +377,13 @@ if __name__ == '__main__':
 
     test_res = run_test(model=mdl, data_loader=test_dl, device=DEVICE)
     test_res = unnormalize_results(results=test_res, data_set=test_ds, n_columns=len(test_res.columns) // 2)
-    test_res.to_csv(train_save_dir / f'test_results_{args.desc}_{args.epochs}_epochs.csv')
+    test_res.to_csv(train_save_dir / f'test_results_{args.desc}_{len(FEATURES)}x{len(FEATURES) * AUTO_ENCODER_CODE_LENGTH_PROPORTION}_{args.epochs}_epochs.csv')
 
     test_errs = get_errors(results=test_res, columns=test_ds.label_columns)
-    test_errs.to_csv(train_save_dir / f'test_errors_{args.desc}_{args.epochs}_epochs.csv')
+    test_errs.to_csv(train_save_dir / f'test_errors_{args.desc}_{len(FEATURES)}x{len(FEATURES) * AUTO_ENCODER_CODE_LENGTH_PROPORTION}_{args.epochs}_epochs.csv')
+
+    test_errs_mean = test_errs.mean()
+    test_errs_mean.to_csv(train_save_dir / f'test_errors_mean_{args.desc}_{len(FEATURES)}x{len(FEATURES) * AUTO_ENCODER_CODE_LENGTH_PROPORTION}_{args.epochs}_epochs.csv')
 
     test_res = pd.concat([test_res, test_errs], axis=1)
 

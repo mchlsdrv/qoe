@@ -22,7 +22,7 @@ from configs.params import (
     TRAIN_DATA_FILE,
     TEST_DATA_FILE,
     OUTPUT_DIR,
-    OUTLIER_TH, LABEL, MOMENTUM, WEIGHT_DECAY, RBM_VISIBLE_UNITS, RBM_HIDDEN_UNITS, RBM_K_GIBBS_STEPS, EPSILON, DESCRIPTION, DROPOUT_DELTA
+    OUTLIER_TH, LABEL, MOMENTUM, WEIGHT_DECAY, RBM_VISIBLE_UNITS, RBM_HIDDEN_UNITS, RBM_K_GIBBS_STEPS, EPSILON, DESCRIPTION, DROPOUT_DELTA, DROPOUT_P_MAX
 )
 from utils.data_utils import QoEDataset
 plt.style.use('ggplot')
@@ -55,6 +55,7 @@ def get_arg_parser():
     parser.add_argument('--dropout_start', type=int, default=DROPOUT_START, help='The epoch when the dropout technique start being applied')
     parser.add_argument('--dropout_delta', type=int, default=DROPOUT_DELTA, help='The number of epochs in which the p_drop will be constant')
     parser.add_argument('--dropout_p', type=float, default=DROPOUT_P, help='The probability of the unit to be zeroed out')
+    parser.add_argument('--dropout_p_max', type=float, default=DROPOUT_P_MAX, help='The maximal probability of the unit to be zeroed out')
     parser.add_argument('--train_data_file', type=str, default=TRAIN_DATA_FILE, help='The path to the train data file')
     parser.add_argument('--desc', type=str, default=DESCRIPTION, help='The description of the current experiment')
     parser.add_argument('--test_data_file', type=str, default=TEST_DATA_FILE, help='The path to the train_test data file')
