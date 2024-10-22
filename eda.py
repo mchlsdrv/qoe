@@ -12,7 +12,7 @@ from scipy import stats
 plt.style.use('ggplot')
 
 
-DATA_ROOT = pathlib.Path('/Users/mchlsdrv/Desktop/PhD/QoE/data/zoom/encrypted_traffic/')
+DATA_ROOT = pathlib.Path('/Users/mchlsdrv/Desktop/BGU/PhD/QoE/Data/zoom/encrypted_traffic/data_clean.csv')
 data_file_name = 'data_clean.csv'
 data = pd.read_csv(DATA_ROOT / data_file_name)
 data.head()
@@ -26,8 +26,6 @@ data.loc[:, 'R'] = pd.Categorical(data['R'])
 data.head()
 
 fig, ax = plt.subplots()
-hist_vals
-
 niqe_hist_vals, niqe_hist_bins = np.histogram(lbl_niqe)
 fps_hist_vals, fps_hist_bins = np.histogram(lbl_fps)
 res_hist_vals = lbl_r.value_counts()[::-1]
