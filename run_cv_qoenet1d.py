@@ -4,95 +4,26 @@ import pathlib
 
 import numpy as np
 import pandas as pd
-import scipy
 from matplotlib import pyplot as plt
 from tqdm import tqdm
 
-from configs.params import VAL_PROP, LR_REDUCTION_FREQ, LR_REDUCTION_FCTR, DROPOUT_START, DROPOUT_P, OUTLIER_TH
+from configs.params import VAL_PROP, LR_REDUCTION_FREQ, LR_REDUCTION_FCTR, DROPOUT_START, DROPOUT_P
 from data_division import build_test_datasets
 from models import QoENet1D
-from regression_utils import eval_regressor, calc_errors
+from regression_utils import calc_errors
 from utils.data_utils import get_train_val_split, QoEDataset
-from utils.train_utils import run_train, run_test
+from utils.train_utils import run_train
 import torch
 
 TS = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
-DATA_FILE = pathlib.Path('/Users/mchlsdrv/Desktop/Projects/PhD/QoE/Data/zoom/encrypted_traffic/data_no_nan.csv')
-ROOT_OUTPUT_DIR = pathlib.Path('/Users/mchlsdrv/Desktop/Projects/PhD/QoE/Code/qoe')
-OUTPUT_DIR = ROOT_OUTPUT_DIR / f'outputs_{TS}'
+DATA_FILE = pathlib.Path('./data/data_no_nan.csv')
+OUTPUT_DIR = pathlib.Path(f'./outputs_{TS}')
 
 
 def min_max_norm(data: pd.DataFrame):
     data /= (data.max() - data.min())
 
-
-# class QoEDataset(torch.utils.data.Dataset):
-#     def __init__(self, data_df: pd.DataFrame, feature_columns: list, label_columns: list, remove_outliers: bool = False):
-#         super().__init__()
-#         self.data_df = data_df
-#
-#         self.rmv_outliers = remove_outliers
-#
-#         self.feature_columns = feature_columns
-#         self.feature_df = None
-#
-#         self.label_columns = label_columns
-#         self.label_df = None
-#
-#         self.labels_mu, self.labels_std = .0, .0
-#
-#         self.prepare_data()
-#
-#     def __len__(self):
-#         return len(self.data_df)
-#
-#     def __getitem__(self, index):
-#         return torch.as_tensor(self.feature_df.iloc[index], dtype=torch.float32), torch.as_tensor(self.label_df.iloc[index], dtype=torch.float32)
-#
-#     def prepare_data(self):
-#         # 1) Drop unused columns
-#         cols2drop = np.setdiff1d(list(self.data_df.columns), np.union1d(self.feature_columns, self.label_columns))
-#         self.data_df = self.data_df.drop(columns=cols2drop)
-#
-#         # 2) Clean Na lines
-#         self.data_df = self.data_df.loc[self.data_df.isna().sum(axis=1) == 0]
-#
-#         # 3) Outliers removal
-#         if self.rmv_outliers:
-#             self.data_df = self.remove_outliers(data_df=self.data_df, std_th=OUTLIER_TH)
-#
-#         # 4) Split to features and labels
-#         self.feature_df = self.data_df.loc[:, self.feature_columns]
-#
-#         # 5) Standardize the features
-#         self.feature_df, _, _ = self.standardize_data(self.feature_df)
-#
-#         # 6) Get the labels column
-#         self.label_df = self.data_df.loc[:, self.label_columns]
-#
-#     @staticmethod
-#     def standardize_data(data_df):
-#         mu, std = data_df.mean(), data_df.std()
-#         data_norm_df = (data_df - mu) / std
-#         return data_norm_df, mu, std
-#
-#     @staticmethod
-#     def remove_outliers(data_df: pd.DataFrame, std_th: int):
-#
-#         dataset_no_outliers = data_df.loc[(np.abs(scipy.stats.zscore(data_df)) < std_th).all(axis=1)]
-#
-#         L = len(data_df)
-#         N = len(dataset_no_outliers)
-#         R = 100 - N * 100 / L
-#         print(f'''
-#     Outliers
-#         Total before reduction: {L}
-#         Total after reduction: {N}
-#         > Present reduced: {R:.3f}%
-#     ''')
-#
-#         return dataset_no_outliers
 
 def get_data(train_df: pd.DataFrame, test_df: pd.DataFrame, features: list, labels: list, batch_size: int = None, val_prop: float = None):
     train_data, val_data, test_data, test_ds = None, None, None, None
