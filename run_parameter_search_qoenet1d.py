@@ -1,12 +1,17 @@
+import os
 import datetime
 import pathlib
-import pandas as pd
-from sklearn.ensemble import RandomForestRegressor
 
-from regression_utils import run_cv
+import numpy as np
 
+from utils.train_utils import search_parameters
+import torch
 
-REGRESSOR = RandomForestRegressor
+TS = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+CV_ROOT = pathlib.Path('/Users/mchlsdrv/Desktop/PhD/QoE/data/zoom/encrypted_traffic/rbm')
+DATA_ROOT = CV_ROOT / 'niqe_rbm_cv_10_folds_int'
+SAVE_DIR = CV_ROOT / f'outputs_{TS}'
+
 DATA_FILE = pathlib.Path('/Users/mchlsdrv/Desktop/Projects/PhD/QoE/Data/zoom/encrypted_traffic/data_no_nan.csv')
 ROOT_OUTPUT_DIR = pathlib.Path('/Users/mchlsdrv/Desktop/Projects/PhD/QoE/Code/qoe/comparisons/DCT')
 TS = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -28,51 +33,34 @@ TS = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 # FEATURES = ['ATP']  # 4.060+/-3.6604, 13.511+/-22.4605, 17.179+/-29.0487
 # FEATURES = ['PPS', 'ATP']
 
-FEATURES = ['BW', 'PPS', 'ATP', 'PL', 'L', 'J']  # 3.14+/-2.815, 11.30+/-20.179, 10.89+/-23.477
+FEATURES = ['BW', 'ATP', 'PL']  # NIQE best
+# FEATURES = ['BW', 'PPS', 'ATP', 'PL', 'L', 'J']  # 3.14+/-2.815, 11.30+/-20.179, 10.89+/-23.477
 
-N_FOLDS = 10
+DATA_DIRS = ['test0', 'test1', 'test2', 'test3', 'test4', 'test5', 'test6', 'test7', 'test8', 'test9']
+EPOCHS = [50]
+BATCHES = [64]
+LAYERS = [64]
+UNITS = [16]
+LOSS_FUNCTIONS = [torch.nn.MSELoss]
+OPTIMIZERS = [torch.optim.Adam]
+INITIAL_LEARNING_RATES = [1e-3]
+# FEATURES = [str(feat) for feat in np.arange(128)]
+LABELS = ['R']
 
 
 if __name__ == '__main__':
-    data_df = pd.read_csv(DATA_FILE)
-
-    # - NIQE
-    label = 'NIQE'
-    output_dir = None
-
-    run_cv(
-        data_df=data_df,
-        regressor=REGRESSOR,
-        n_folds=N_FOLDS,
+    os.makedirs(SAVE_DIR)
+    search_parameters(
+        test_data_root=DATA_ROOT,
+        data_dirs=DATA_DIRS,
         features=FEATURES,
-        label=label,
-        data_dir=DATA_FILE.parent,
-        output_dir=output_dir
-    )
-
-    # - FPS
-    label = 'FPS'
-    output_dir = None
-
-    run_cv(
-        data_df=data_df,
-        regressor=REGRESSOR,
-        n_folds=N_FOLDS,
-        features=FEATURES,
-        label=label,
-        data_dir=DATA_FILE.parent,
-        output_dir=output_dir
-    )
-    # - R
-    label = 'R'
-    output_dir = None
-
-    run_cv(
-        data_df=data_df,
-        regressor=REGRESSOR,
-        n_folds=N_FOLDS,
-        features=FEATURES,
-        label=label,
-        data_dir=DATA_FILE.parent,
-        output_dir=output_dir
+        labels=LABELS,
+        batch_size_numbers=BATCHES,
+        epoch_numbers=EPOCHS,
+        layer_numbers=LAYERS,
+        unit_numbers=UNITS,
+        loss_functions=LOSS_FUNCTIONS,
+        optimizers=OPTIMIZERS,
+        initial_learning_rates=INITIAL_LEARNING_RATES,
+        save_dir=SAVE_DIR
     )

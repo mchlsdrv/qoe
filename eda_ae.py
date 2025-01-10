@@ -5,7 +5,9 @@ import pandas as pd
 import seaborn as sns
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+from sklearn.metrics import confusion_matrix
 from sklearn.decomposition import PCA
+import seaborn as sns
 from scipy import stats
 plt.style.use('ggplot')
 

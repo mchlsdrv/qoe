@@ -4,15 +4,16 @@ import numpy as np
 import pandas as pd
 import pathlib
 
-from qoe.data_division import build_test_datasets
+from configs.params import EPSILON
+from data_division import build_test_datasets
 
 DEBUG = False
 
 
 def calc_errors(true, predicted):
-    mean_error = np.abs(100 - true.flatten() * 100 / predicted)
+    errors = np.abs(100 - true.flatten() * 100 / (predicted.flatten() + EPSILON))
 
-    return mean_error
+    return errors
 
 
 def train_regressor(X, y, regressor):
@@ -31,12 +32,6 @@ def eval_regressor(X, y, model):
 
     errors = calc_errors(true=y, predicted=y_pred)
 
-    if DEBUG:
-        print(f'''
-    Scores:
-        - Mean Error (%): {errors.mean()}
-    ''')
-
     return y_pred, errors
 
 
@@ -48,34 +43,36 @@ def run_cv(data_df: pd.DataFrame, regressor, n_folds: int, features: list, label
 
     results = pd.DataFrame(columns=['true', 'predicted', 'error (%)'], dtype=np.float32)
     for cv_dir in os.listdir(cv_root_dir):
-        train_df = pd.read_csv(cv_root_dir / cv_dir / 'train_data.csv')
-        X_train = train_df.loc[:, features].values
-        y_train = train_df.loc[:, [label]].values
-        model = train_regressor(X=X_train, y=y_train, regressor=regressor)
+        if cv_dir[0] != '.':
+            train_df = pd.read_csv(cv_root_dir / cv_dir / 'train_data.csv')
+            X_train = train_df.loc[:, features].values
+            y_train = train_df.loc[:, [label]].values
+            model = train_regressor(X=X_train, y=y_train, regressor=regressor)
 
-        test_df = pd.read_csv(cv_root_dir / cv_dir / 'test_data.csv')
-        X_test = test_df.loc[:, features].values
-        y_test = test_df.loc[:, [label]].values
+            test_df = pd.read_csv(cv_root_dir / cv_dir / 'test_data.csv')
+            X_test = test_df.loc[:, features].values
+            y_test = test_df.loc[:, [label]].values
 
-        preds, errors = eval_regressor(X=X_test, y=y_test, model=model)
-        results = pd.concat([
-            results,
-            pd.DataFrame(
-                {
-                    'true': y_test.flatten(),
-                    'predicted': preds,
-                    'error (%)': errors
-                }
-            )
-        ], ignore_index=True)
+            preds, errors = eval_regressor(X=X_test, y=y_test, model=model)
+            results = pd.concat([
+                results,
+                pd.DataFrame(
+                    {
+                        'true': y_test.flatten(),
+                        'predicted': preds.flatten(),
+                        'error (%)': errors.flatten()
+                    }
+                )
+            ], ignore_index=True)
 
     if isinstance(output_dir, pathlib.Path):
         results.to_csv(output_dir / 'final_results.csv')
     mean_error = results.loc[:, "error (%)"].mean()
+    std_error = results.loc[:, "error (%)"].std()
     print(f'''
 Mean Stats on {n_folds} CV for {label}:
     Mean Errors (%)
     ---------------
-    {mean_error:.3f}
+    {mean_error:.2f}+/-{std_error:.3f}
     ''')
     return results

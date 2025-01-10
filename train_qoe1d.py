@@ -1,21 +1,20 @@
 import os
 import pandas as pd
-import pathlib
 import torch
 from torch.utils.data import Dataset
 import matplotlib
 import matplotlib.pyplot as plt
 
-from qoe.configs.params import TRAIN_DATA_FILE, FEATURES, LABELS, DEVICE, OPTIMIZER, LOSS_FUNCTION, TS, TEST_DATA_FILE
-from qoe.models import QoEModel1D
-from qoe.utils.aux_funcs import get_arg_parser, unnormalize_results, get_errors
-from qoe.utils.data_utils import get_train_val_split, QoEDataset
-from qoe.utils.train_utils import run_train, run_test
+from configs.params import TRAIN_DATA_FILE, FEATURES, LABELS, DEVICE, OPTIMIZER, LOSS_FUNCTION, TS, TEST_DATA_FILE
+from models import QoEModel1D
+from utils.aux_funcs import get_arg_parser, unnormalize_results, get_errors
+from utils.data_utils import get_train_val_split, QoEDataset
+from utils.train_utils import run_train, run_test
 
 matplotlib.use('Agg')
 plt.style.use('ggplot')
 
-TRAIN_DATA_FILE = pathlib.Path('/Users/mchlsdrv/Desktop/PhD/QoE/data/zoom/encrypted_traffic/data.csv')
+# TRAIN_DATA_FILE = pathlib.Path('/Users/mchlsdrv/Desktop/PhD/QoE/data/zoom/encrypted_traffic/data.csv')
 
 if __name__ == '__main__':
     parser = get_arg_parser()

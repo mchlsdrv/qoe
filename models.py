@@ -7,7 +7,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 
 from configs.params import TRAIN_DATA_FILE, FEATURES, LABELS, DEVICE, OPTIMIZER, LOSS_FUNCTION, TEST_DATA_FILE, TS, OUTPUT_DIR, LAYER_ACTIVATION, AUTO_ENCODER_CODE_LENGTH_PROPORTION
-from utils.aux_funcs import get_arg_parser, unnormalize_results, get_errors
+from utils.aux_funcs import get_arg_parser, unstandardize_results, get_errors
 from utils.data_utils import get_train_val_split, QoEDataset
 from utils.train_utils import run_train, run_test
 
@@ -201,7 +201,7 @@ class AutoEncoder(torch.nn.Module):
         return x
 
 
-class QoEModel1D(torch.nn.Module):
+class QoENet1D(torch.nn.Module):
     def __init__(self, n_features, n_labels, n_layers, n_units):
         super().__init__()
         self.n_features = n_features
@@ -228,7 +228,8 @@ class QoEModel1D(torch.nn.Module):
         for lyr in range(self.n_layers):
             self._add_layer(n_in=self.n_units, n_out=self.n_units, activation=torch.nn.SiLU)
 
-        self._add_layer(n_in=self.n_units, n_out=self.n_labels, activation=torch.nn.ReLU)
+        self._add_layer(n_in=self.n_units, n_out=self.n_labels, activation=torch.nn.Tanh)
+        # self._add_layer(n_in=self.n_units, n_out=self.n_labels, activation=torch.nn.ReLU)
 
     def forward(self, x, p_drop: float = 0.0):
         tmp_in = x
@@ -310,7 +311,7 @@ if __name__ == '__main__':
     )
 
     # - Build the model
-    # mdl = QoEModel1D(
+    # mdl = QoENet1D(
     #     n_features=len(FEATURES),
     #     n_labels=len(LABELS),
     #     n_layers=args.n_layers,
@@ -376,7 +377,7 @@ if __name__ == '__main__':
     )
 
     test_res = run_test(model=mdl, data_loader=test_dl, device=DEVICE)
-    test_res = unnormalize_results(results=test_res, data_set=test_ds, n_columns=len(test_res.columns) // 2)
+    test_res = unstandardize_results(results=test_res, data_set=test_ds, n_columns=len(test_res.columns) // 2)
     test_res.to_csv(train_save_dir / f'test_results_{args.desc}_{len(FEATURES)}x{len(FEATURES) * AUTO_ENCODER_CODE_LENGTH_PROPORTION}_{args.epochs}_epochs.csv')
 
     test_errs = get_errors(results=test_res, columns=test_ds.label_columns)

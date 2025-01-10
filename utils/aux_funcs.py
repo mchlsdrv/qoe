@@ -76,7 +76,7 @@ def run_pca(dataset_df: pd.DataFrame):
     return dataset_pca_df, pca
 
 
-def unnormalize_results(results: pd.DataFrame, data_set: QoEDataset, n_columns: int) -> pd.DataFrame:
+def unstandardize_results(results: pd.DataFrame, data_set: QoEDataset, n_columns: int) -> pd.DataFrame:
     """
     This function unnormalizes the labels by performing X * STD(X) + MEAN(X) performed in the process of dataset creation, thus it requires
     the original QoEDataset object
@@ -85,8 +85,8 @@ def unnormalize_results(results: pd.DataFrame, data_set: QoEDataset, n_columns: 
     :param n_columns: The number of labels
     :return: pandas.DataFrame containing the unnormalized true and predicted labels
     """
-    print('Unnormalizing results...')
-    unnormalized_results = pd.DataFrame()
+    print('Unstandardizing results...')
+    unstandardized_results = pd.DataFrame()
     for line_idx in tqdm(range(len(results))):
         # - Get the line
         res = pd.DataFrame(results.iloc[line_idx]).T.reset_index(drop=True)
@@ -109,12 +109,12 @@ def unnormalize_results(results: pd.DataFrame, data_set: QoEDataset, n_columns: 
         labels_preds = pd.concat([labels, preds], axis=1)
 
         # - Append to the unnormalized_results
-        unnormalized_results = pd.concat([unnormalized_results, labels_preds])
+        unstandardized_results = pd.concat([unstandardized_results, labels_preds])
 
     # - Reset the index to normal
-    unnormalized_results = unnormalized_results.reset_index(drop=True)
+    unstandardized_results = unstandardized_results.reset_index(drop=True)
 
-    return unnormalized_results
+    return unstandardized_results
 
 
 def get_number_of_parameters(model: torch.nn.Module):

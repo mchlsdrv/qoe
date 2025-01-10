@@ -8,7 +8,7 @@ import torch.utils.data
 import tqdm
 
 from configs.params import VAL_PROP, DEVICE, LR_REDUCTION_FREQ, LR_REDUCTION_FCTR, DROPOUT_START, DROPOUT_P
-from utils.aux_funcs import run_pca, get_number_of_parameters, unnormalize_results, get_errors, plot_losses
+from utils.aux_funcs import run_pca, get_number_of_parameters, unstandardize_results, get_errors, plot_losses
 from utils.data_utils import get_train_val_split, QoEDataset
 
 
@@ -108,7 +108,7 @@ def run_train(
 ==========================================
 ================= STATS ==================
 ==========================================
-    Epoch {epch + 1} loss: 
+    Epoch {epch + 1} loss:
         > train = {train_losses.mean():.4f}
         > validation = {val_losses.mean():.4f}
 ==========================================
@@ -149,7 +149,7 @@ def run_test(model: torch.nn.Module, data_loader: torch.utils.data.DataLoader, d
     return test_results
 
 
-def run_cv(
+def search_parameters(
         model, test_data_root: pathlib.Path, data_dirs: list, features: list, labels: list, batch_size_numbers: list,
         epoch_numbers: list, layer_numbers: list, unit_numbers: list, loss_functions: list, optimizers: list,
         initial_learning_rates: list, save_dir: pathlib.Path
@@ -345,7 +345,7 @@ def run_cv(
                                         device=DEVICE
                                     )
                                     if test_ds.labels_std != 0:
-                                        test_res = unnormalize_results(results=test_res, data_set=test_ds, n_columns=len(test_res.columns) // 2)
+                                        test_res = unstandardize_results(results=test_res, data_set=test_ds, n_columns=len(test_res.columns) // 2)
 
                                     # - Save the train_test metadata
                                     test_res.to_csv(train_save_dir / f'test_results.csv', index=False)

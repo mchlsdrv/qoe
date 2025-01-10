@@ -59,10 +59,10 @@ DATA_NAME = 'niqe_rbm'
 N_FOLDS = 10
 DATA_ROOT_DIR = pathlib.Path(f'/Users/mchlsdrv/Desktop/PhD/QoE/data/zoom/encrypted_traffic/rbm')
 DATA_SET_PATH = DATA_ROOT_DIR / f'niqe_data_clean_rbm_float.csv'
-DATA_SET = pd.read_csv(DATA_SET_PATH)
-if 'Unnamed: 0' in DATA_SET.columns:
-    DATA_SET = DATA_SET.drop(columns=['Unnamed: 0'])
 SAVE_DIR = DATA_ROOT_DIR / f'{DATA_NAME}_cv_{N_FOLDS}_folds_float'
 
 if __name__ == '__main__':
-    build_test_datasets(data=DATA_SET, n_folds=N_FOLDS, root_save_dir=SAVE_DIR)
+    data_set = pd.read_csv(DATA_SET_PATH)
+    if 'Unnamed: 0' in data_set.columns:
+        DATA_SET = data_set.drop(columns=['Unnamed: 0'])
+    build_test_datasets(data=data_set, n_folds=N_FOLDS, root_save_dir=SAVE_DIR)

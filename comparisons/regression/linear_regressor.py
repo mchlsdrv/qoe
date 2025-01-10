@@ -1,12 +1,13 @@
 import datetime
 import pathlib
+
 import pandas as pd
-from sklearn.ensemble import RandomForestRegressor
+from sklearn.linear_model import LinearRegression
 
 from regression_utils import run_cv
 
 
-REGRESSOR = RandomForestRegressor
+REGRESSOR = LinearRegression
 DATA_FILE = pathlib.Path('/Users/mchlsdrv/Desktop/Projects/PhD/QoE/Data/zoom/encrypted_traffic/data_no_nan.csv')
 ROOT_OUTPUT_DIR = pathlib.Path('/Users/mchlsdrv/Desktop/Projects/PhD/QoE/Code/qoe/comparisons/DCT')
 TS = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -28,7 +29,8 @@ TS = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 # FEATURES = ['ATP']  # 4.060+/-3.6604, 13.511+/-22.4605, 17.179+/-29.0487
 # FEATURES = ['PPS', 'ATP']
 
-FEATURES = ['BW', 'PPS', 'ATP', 'PL', 'L', 'J']  # 3.14+/-2.815, 11.30+/-20.179, 10.89+/-23.477
+FEATURES = ['BW', 'ATP', 'PL']  # NIQE best
+# FEATURES = ['BW', 'PPS', 'ATP', 'PL', 'L', 'J']  # 3.14+/-2.815, 11.30+/-20.179, 10.89+/-23.477
 
 N_FOLDS = 10
 
@@ -39,6 +41,7 @@ if __name__ == '__main__':
     # - NIQE
     label = 'NIQE'
     output_dir = None
+    # os.makedirs(output_dir, exist_ok=True)
 
     run_cv(
         data_df=data_df,
@@ -52,7 +55,9 @@ if __name__ == '__main__':
 
     # - FPS
     label = 'FPS'
+    # output_dir = ROOT_OUTPUT_DIR / f'outputs_{N_FOLDS}_cv_{label}_{TS}'
     output_dir = None
+    # os.makedirs(output_dir, exist_ok=True)
 
     run_cv(
         data_df=data_df,
@@ -65,7 +70,9 @@ if __name__ == '__main__':
     )
     # - R
     label = 'R'
+    # output_dir = ROOT_OUTPUT_DIR / f'outputs_{N_FOLDS}_cv_{label}_{TS}'
     output_dir = None
+    # os.makedirs(output_dir, exist_ok=True)
 
     run_cv(
         data_df=data_df,
