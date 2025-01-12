@@ -9,10 +9,9 @@ import sklearn.decomposition
 import torch
 import tqdm
 import scipy
-from torch.utils.data import Dataset
 import matplotlib
 import matplotlib.pyplot as plt
-
+EPSILON = 1e-9
 matplotlib.use('Agg')
 plt.style.use('ggplot')
 
@@ -141,8 +140,7 @@ class QoEModel2(torch.nn.Module):
 
     def forward(self, x, p_drop: float = 0.0):
         x = self.model(x)
-        # for lyr in self.layers:
-        #     x = lyr(x)
+
         x = torch.nn.functional.dropout(x, p=p_drop, training=self.training)
 
         return x
@@ -221,6 +219,7 @@ def run_train(model: torch.nn.Module, epochs: int, train_data_loader: torch.util
         btch_pbar = tqdm.tqdm(train_data_loader)
         for (X, Y) in btch_pbar:
             X = X.to(device)
+            Y = Y.to(device)
             results = model(X, p_drop=p_drop)
             loss = loss_function(results, Y)
 
@@ -243,6 +242,7 @@ def run_train(model: torch.nn.Module, epochs: int, train_data_loader: torch.util
         with torch.no_grad():
             for (X, Y) in val_data_loader:
                 X = X.to(device)
+                Y = Y.to(device)
                 results = model(X)
                 loss = loss_function(results, Y)
                 btch_val_losses = np.append(btch_val_losses, loss.item())
@@ -262,6 +262,7 @@ def run_test(model: torch.nn.Module, data_loader: torch.utils.data.DataLoader, d
     test_results = pd.DataFrame()
     for (X, Y) in data_loader:
         X = X.to(device)
+        Y = Y.to(device)
         btch_preds = model(X)
 
         for y, pred in zip(Y, btch_preds):
@@ -269,11 +270,11 @@ def run_test(model: torch.nn.Module, data_loader: torch.utils.data.DataLoader, d
 
             # - Add labels
             for i, y_val in enumerate(y):
-                d[f'true_{i}'] = np.float32(y_val.numpy())
+                d[f'true_{i}'] = np.float32(y_val.cpu().numpy())
 
             # - Add preds
             for i, pred_val in enumerate(pred):
-                d[f'pred_{i}'] = np.float32(pred_val.detach().numpy())
+                d[f'pred_{i}'] = np.float32(pred_val.detach().cpu().numpy())
 
             # - Create the cv_5_folds frame
             btch_results = pd.DataFrame(d, index=pd.Index([0]))
@@ -349,14 +350,13 @@ def get_errors(results: pd.DataFrame, columns: list):
 
     columns = [column_name + '_errors(%)' for column_name in columns]
 
-    errors = pd.DataFrame(np.abs(100 - true * 100 / pred), columns=columns)
+    errors = pd.DataFrame(np.abs(100 - true * 100 / (pred + EPSILON)), columns=columns)
 
     return errors
 
 
 def run_ablation(test_data_root: pathlib.Path, data_dirs: list, features: list, labels: list, batch_size_numbers: list, epoch_numbers: list, layer_numbers: list, unit_numbers: list, loss_functions: list, optimizers: list,
                  initial_learning_rates: list, save_dir: pathlib.Path):
-
     # - Will hold the final results
     ablation_results = pd.DataFrame()
 
@@ -403,6 +403,7 @@ def run_ablation(test_data_root: pathlib.Path, data_dirs: list, features: list, 
 
         # - Get the train / test cv_5_folds
         train_data_df = pd.read_csv(data_folder / 'train_data.csv')
+        train_data_df = train_data_df.loc[~train_data_df.isna().loc[:, 'Bandwidth']]
         _, train_pca = run_pca(dataset_df=train_data_df.loc[:, features])
         test_data_df = pd.read_csv(data_folder / 'test_data.csv')
 
@@ -452,12 +453,14 @@ def run_ablation(test_data_root: pathlib.Path, data_dirs: list, features: list, 
                                         data_df=train_df,
                                         feature_columns=features,
                                         label_columns=labels,
+                                        remove_outliers=True,
                                         pca=train_pca
                                     )
                                     val_ds = QoEDataset(
                                         data_df=val_df,
                                         feature_columns=features,
                                         label_columns=labels,
+                                        remove_outliers=True,
                                         pca=train_pca
                                     )
 
@@ -482,7 +485,8 @@ def run_ablation(test_data_root: pathlib.Path, data_dirs: list, features: list, 
                                     )
 
                                     # - Build the model
-                                    mdl = QoEModel2(n_features=len(features), n_labels=len(labels), n_layers=n_layers, n_units=n_units)
+                                    mdl = QoEModel(n_features=len(features), n_labels=len(labels), n_layers=n_layers, n_units=n_units)
+                                    # mdl = QoEModel2(n_features=len(features), n_labels=len(labels), n_layers=n_layers, n_units=n_units)
                                     n_train_params, n_non_train_params = get_number_of_parameters(model=mdl)
                                     mdl.to(DEVICE)
 
@@ -523,7 +527,7 @@ def run_ablation(test_data_root: pathlib.Path, data_dirs: list, features: list, 
                                         data_df=test_data_df,
                                         feature_columns=features,
                                         label_columns=labels,
-                                        pca=train_pca
+                                        pca=train_pca,
                                     )
                                     test_dl = torch.utils.data.DataLoader(
                                         test_ds,
@@ -614,8 +618,8 @@ Number of Parameters:
     > Non-Trainable: {n_non_train_params}
     => Total: {n_train_params + n_non_train_params}
 
-Mean Errors:
-{test_errs.abs().mean()}
+Mean Errors (%):
+{test_errs.abs().mean().values[0]}+/-{test_errs.abs().std().values[0]}
 
 Status:
     - Experiment {exp_idx}/{total_exp} ({100 * exp_idx / total_exp:.2f}% done)
@@ -624,7 +628,13 @@ Status:
 
     # - Save the final metadata and the results
     ablation_results.to_csv(save_dir / 'ablation_final_results.csv', index=False)
-
+    print('***************************************************************')
+    print(f'           {cv_folds}-Folds CV Final Results')
+    print('***************************************************************')
+    for lbl in labels:
+        err_vals = ablation_results.loc[:, f'{lbl}_errors(%)'].values
+        print(f'\t> {lbl} Mean {cv_folds}-fold CV Errors (%) based on {features}: {err_vals.mean():.2f}+/-{err_vals.std():.3f}')
+    print('***************************************************************')
     # - Save the final metadata and the results
     test_metadata.to_csv(save_dir / 'test_metadata.csv', index=False)
 
@@ -698,15 +708,16 @@ if __name__ == '__main__':
         feature_columns=FEATURES,
         label_columns=LABELS,
         pca=train_pca,
-        remove_outliers=True
+        # remove_outliers=False,
+        remove_outliers = True,
     )
     val_ds = QoEDataset(
         data_df=val_df,
         feature_columns=FEATURES,
         label_columns=LABELS,
         pca=train_pca,
-        remove_outliers=False
-
+        # remove_outliers=False,
+        remove_outliers=True,
     )
 
     # - Data Loader

@@ -55,10 +55,10 @@ def build_test_datasets(data: pd.DataFrame, n_folds: int,  root_save_dir: pathli
 
 
 N_FOLDS = 10
-DATA_ROOT_DIR = pathlib.Path(f'/Users/mchlsdrv/Desktop/PhD/QoE/data/zoom/encrypted_traffic')
-DATA_SET_PATH = DATA_ROOT_DIR / f'data_no_nan.csv'
+DATA_ROOT_DIR = pathlib.Path(f'./data')
+DATA_SET_PATH = DATA_ROOT_DIR / f'data.csv'
 DATA_SET = pd.read_csv(DATA_SET_PATH)
-SAVE_DIR = DATA_ROOT_DIR / f'encrypted_traffic/cv_{N_FOLDS}_folds'
+SAVE_DIR = DATA_ROOT_DIR / f'cv_{N_FOLDS}_folds'
 
 if __name__ == '__main__':
     build_test_datasets(data=DATA_SET, n_folds=N_FOLDS, root_save_dir=SAVE_DIR)
