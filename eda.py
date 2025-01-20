@@ -8,26 +8,31 @@ import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
 from scipy import stats
 plt.style.use('ggplot')
+mpl.rc('font', weight='bold', size=14)
 
 
-DATA_ROOT = pathlib.Path('/Users/mchlsdrv/Desktop/BGU/PhD/QoE/Data/zoom/encrypted_traffic/data_clean.csv')
-data_file_name = 'data_clean.csv'
+DATA_ROOT = pathlib.Path('/Users/mchlsdrv/Desktop/Projects/PhD/QoE/Code/qoe/data')
+# data_file_name = 'data_clean.csv'
+data_file_name = 'data_no_nan.csv'
 data = pd.read_csv(DATA_ROOT / data_file_name)
+data = data.drop(columns=['Unnamed: 0'])
 data.head()
 data.describe()
 
-# LABELS
-# -- Resolution
+# LABEL PLOTS
+fig, ax = plt.subplots(1, 3, figsize=(40, 10))
+
+# - NIQE
+lbl_niqe = data.loc[:, 'NIQE'].values
+niqe_y, niqe_x = np.histogram(lbl_niqe, density=False)
+ax[0].bar(niqe_x[:-1], niqe_y, width=0.34)
+ax[0].set(xlabel='NIQE', ylabel='Count')
+ax[0].set_xticks(labels=np.round(niqe_x[:-1], 1), ticks=niqe_x[:-1], rotation=30.0)
+
+# - R
 lbl_r = data.loc[:, 'R']
-
-data.loc[:, 'R'] = pd.Categorical(data['R'])
-data.head()
-
-fig, ax = plt.subplots()
-niqe_hist_vals, niqe_hist_bins = np.histogram(lbl_niqe)
-fps_hist_vals, fps_hist_bins = np.histogram(lbl_fps)
-res_hist_vals = lbl_r.value_counts()[::-1]
-res_hist_bins = [
+r_y = lbl_r.value_counts()[::-1]
+r_x = [
     '320x180',
     '480x270',
     '640x360',
@@ -36,44 +41,17 @@ res_hist_bins = [
     '1120x630',
     '1280x720',
 ]
+ax[1].bar(r_bin_lbls, r_y)#, width=88.)
+ax[1].set_xticks(labels=r_x, ticks=r_bin_lbls, rotation=30)
+ax[1].set(xlabel='R', ylabel='Count')
 
-fps_hist_bins
-mpl.rcParams.update({'font.size': 22})
-fig, ax = plt.subplots(1, 3, figsize=(40, 10))
-
-ax[0].bar(niqe_hist_bins[:-1], niqe_hist_vals)
-ax[0].set(title='NIQE')
-
-ax[1].bar(fps_hist_bins[:-1], fps_hist_vals)
-ax[1].set_xticks(labels=np.round(fps_hist_bins[:-1], 1), ticks=fps_hist_bins[:-1])
-ax[1].set(title='FPS')
-
-ax[2].bar(res_hist_bins, res_hist_vals)
-ax[2].set_xticks(labels=res_hist_bins, ticks=res_hist_bins, rotation=30)
-ax[2].set(title='R')
-plt.show()
-fig.savefig(DATA_ROOT / 'label_hist.png')
-sns.displot(lbl_r, ax=ax, col_order=res_order)
-
-
-sns.boxenplot(lbl_r)
-
-# -- FPS
-lbl_fps= data.loc[:, 'FPS']
-sns.histplot(lbl_fps)
-sns.boxenplot(lbl_fps)
-# -- NIQE
-lbl_niqe = data.loc[:, 'NIQE']
-fctr = (lbl_niqe.max() - lbl_niqe.min())
-scaled_lbl = (lbl_niqe / fctr)
-scaled_lbl
-lbl_niqe /= 5
-lbl_niqe = np.floor(lbl_niqe)
-lbl_niqe.describe()
-9.5 % 5
-sns.histplot(lbl_niqe)#, stat='density')#, binwidth=10)
-sns.histplot(scaled_lbl)#, stat='density')#, binwidth=10)
-sns.boxenplot(lbl_niqe)
+# - FPS
+lbl_fps = data.loc[:, 'FPS'].values
+fps_y, fps_x = np.histogram(lbl_fps, density=False)
+ax[2].bar(fps_x[:-1], fps_y, width=2.7)
+ax[2].set(xlabel='FPS', ylabel='Count')
+ax[2].set_xticks(labels=np.round(fps_x[:-1], 1), ticks=fps_x[:-1], rotation=30.0)
+# fig.savefig('./outputs/label_dist.png')
 
 
 # FEATURES
@@ -95,12 +73,14 @@ feat_jitter = data.loc[:, 'J']
 plt.plot(x, feat_jitter)
 sns.histplot(feat_jitter)
 sns.boxenplot(feat_jitter)
+
 # -- AVG time between packets
 feat_avg_tp = data.loc[:, 'ATP']
 plt.plot(x, feat_avg_tp)
 sns.histplot(feat_avg_tp)
 sns.boxenplot(feat_avg_tp)
-# -- Packets lenght
+
+# -- Packets length
 feat_pckt_len = data.loc[:, 'PL']
 plt.plot(x, feat_pckt_len)
 sns.histplot(feat_pckt_len)
@@ -122,10 +102,12 @@ sns.boxenplot(data_mean_sqrt)
 data_mean_cbrt = np.cbrt(data_norm)
 sns.boxenplot(data_mean_cbrt)
 data_mean_cbrt.to_csv(DATA_ROOT / 'data_norm_cbrt.csv', index=False)
-# - Corralation
+
+# - Correlation
 data_cbrt_corr = data_mean_cbrt.corr()
 data_cbrt_corr
-# - Corralation
+
+# - Correlation
 data_corr = data_norm.corr()
 data_corr
 sns.heatmap(data_corr)
@@ -137,7 +119,7 @@ data_norm_labels = data_norm.loc[:, ['NIQE', 'R', 'FPS']]
 data_norm_labels.head()
 sns.boxenplot(data_norm_labels)
 
-data_norm_features = data_norm.loc[:, ['BW', 'PPS', 'ATP', 'PL', 'J', 'L']]
+data_norm_features = data_norm.loc[:, ['BW', 'PPS', 'ATP', 'PL', 'J', 'L', 'DP', 'SP', 'IS']]
 
 data_norm_features.head()
 sns.boxenplot(data_norm_features)
@@ -145,7 +127,7 @@ stats.zscore(data_norm_features)
 
 # OUTLIERS
 sns.boxenplot(data_norm_features)
-data_norm_features_no_outliers = data_norm_features.loc[(np.abs(stats.zscore(data_norm_features)) < 3).all(axis=1)]
+data_norm_features_no_outliers = data_norm_features.loc[(np.abs(stats.zscore(data_norm_features)) < 2).all(axis=1)]
 sns.boxenplot(data_norm_features_no_outliers)
 L = len(data_norm_features)
 N = len(data_norm_features_no_outliers)
@@ -159,7 +141,8 @@ Total after reduction: {N}
 
 data_norm_no_outliers = data_norm.loc[(np.abs(stats.zscore(data_norm)) < 2).all(axis=1)]
 sns.boxenplot(data_norm_no_outliers)
-data_norm_features_no_outliers = data_norm_no_outliers.loc[:, ['BW', 'ATP', 'PL', 'PPS']].reset_index(drop=True)
+# data_norm_features_no_outliers = data_norm_no_outliers.loc[:, ['BW', 'ATP', 'PL', 'PPS', 'J', 'L', 'DP', 'SP', 'IS', 'ATP']].reset_index(drop=True)
+data_norm_features_no_outliers = data_norm_no_outliers.loc[:, ['BW', 'ATP', 'PL', 'PPS', 'J', 'L', 'DP', 'SP', 'IS', 'ATP']].reset_index(drop=True)
 data_norm_features_no_outliers
 data_norm_labels_no_outliers = data_norm_no_outliers.loc[:, ['NIQE', 'R', 'FPS']].reset_index(drop=True)
 data_norm_labels_no_outliers
@@ -172,12 +155,15 @@ loadings = pd.DataFrame(pca.components_.T, columns=[f'PC{i}' for i in range(len(
 loadings
 
 exp_var = pca.explained_variance_ratio_
+exp_var = pca.cumulative_explained_variance_ratio_
 cum_exp_var = np.cumsum(exp_var)
 cum_exp_var
 
-plt.plot(1 - pca.explained_variance_ratio_)
-plt.ylabel('Explained Variance')
-plt.xlabel('Components')
+fig, ax = plt.subplots()
+
+ax.plot(np.arange(1, len(cum_exp_var) + 1), pca.explained_variance_ratio_)
+ax.set(xlabel='Primary Component', ylabel='Cummulative Explained Variance')
+ax.set_xticks(labels=np.arange(1, len(cum_exp_var) + 1), ticks=np.arange(1, len(cum_exp_var) + 1))
 
 sns.boxenplot(data_norm_features_no_outliers_pca)
 

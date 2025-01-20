@@ -2,12 +2,12 @@ import datetime
 import pathlib
 
 import pandas as pd
-from sklearn.tree import DecisionTreeRegressor
+from sklearn.linear_model import ElasticNet
 
 from regression_utils import run_cv
 
 
-REGRESSOR = DecisionTreeRegressor
+REGRESSOR = ElasticNet
 DATA_FILE = pathlib.Path('/Users/mchlsdrv/Desktop/Projects/PhD/QoE/Data/zoom/encrypted_traffic/data_no_nan.csv')
 ROOT_OUTPUT_DIR = pathlib.Path('/Users/mchlsdrv/Desktop/Projects/PhD/QoE/Code/qoe/comparisons/DCT')
 TS = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -37,6 +37,7 @@ TS = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 # FEATURES = ['BW', 'PPS', 'ATP', 'PL', 'L', 'J', 'IS']              # 2.7070+/-2.11323, 10.0707+/-11.55243, 11.7964+/-16.93786
 FEATURES = ['BW', 'PPS', 'ATP', 'PL', 'L', 'J', 'DP', 'SP']          # 2.6957+/-2.10428, 10.3013+/-11.40323, 11.6544+/-14.50924
 # FEATURES = ['BW', 'PPS', 'ATP', 'PL', 'L', 'J', 'DP', 'SP', 'IS']  # 2.6957+/-2.10428, 10.1509+/-11.56672, 12.0271+/-18.33098
+
 N_FOLDS = 10
 
 
@@ -46,6 +47,7 @@ if __name__ == '__main__':
     # - NIQE
     label = 'NIQE'
     output_dir = None
+    # os.makedirs(output_dir, exist_ok=True)
 
     run_cv(
         data_df=data_df,
@@ -74,7 +76,9 @@ if __name__ == '__main__':
     )
     # - R
     label = 'R'
+    # output_dir = ROOT_OUTPUT_DIR / f'outputs_{N_FOLDS}_cv_{label}_{TS}'
     output_dir = None
+    # os.makedirs(output_dir, exist_ok=True)
 
     run_cv(
         data_df=data_df,

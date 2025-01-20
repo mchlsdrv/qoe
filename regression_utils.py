@@ -4,9 +4,9 @@ import numpy as np
 import pandas as pd
 import pathlib
 
-from configs.params import EPSILON
+from configs.params import EPSILON, RANDOM_SEED
 from data_division import build_test_datasets
-
+np.random.seed(RANDOM_SEED)
 DEBUG = False
 
 
@@ -21,7 +21,7 @@ def train_regressor(X, y, regressor):
     model = regressor()
 
     # - Fit the model on the train data
-    model.fit(X, y)
+    model.fit(X, y.flatten())
 
     return model
 
@@ -73,6 +73,6 @@ def run_cv(data_df: pd.DataFrame, regressor, n_folds: int, features: list, label
 Mean Stats on {n_folds} CV for {label}:
     Mean Errors (%)
     ---------------
-    {mean_error:.2f}+/-{std_error:.3f}
+    {mean_error:.4f}+/-{std_error:.5f}
     ''')
     return results
