@@ -56,7 +56,7 @@ def build_test_datasets(data: pd.DataFrame, n_folds: int,  root_save_dir: pathli
 
 N_FOLDS = 10
 DATA_ROOT_DIR = pathlib.Path(f'./data')
-DATA_SET_PATH = DATA_ROOT_DIR / f'data.csv'
+DATA_SET_PATH = DATA_ROOT_DIR / f'data_no_nan.csv'
 DATA_SET = pd.read_csv(DATA_SET_PATH)
 SAVE_DIR = DATA_ROOT_DIR / f'cv_{N_FOLDS}_folds'
 

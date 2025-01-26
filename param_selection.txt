@@ -1,0 +1,95 @@
+***************************************************************
+           10-Folds CV Final Results
+***************************************************************
+	> NIQE Mean 10-fold CV Errors (%) based on ['Latancy', 'Jitter']: 4.5429+/-0.80822
+	> Resolution Mean 10-fold CV Errors (%) based on ['Latancy', 'Jitter']: 14.2402+/-2.37305
+	> fps Mean 10-fold CV Errors (%) based on ['Latancy', 'Jitter']: 12.4055+/-2.14287
+
+    Number of Parameters:
+    > Trainable: 8421385
+    > Non - Trainable: 0
+    => Total: 8421385
+    => Mean runtime: 00:00:06.95[H:M:S]
+
+***************************************************************
+***************************************************************
+           10-Folds CV Final Results
+***************************************************************
+	> NIQE Mean 10-fold CV Errors (%) based on ['Latancy', 'Jitter']: 4.4958+/-0.64420
+	> Resolution Mean 10-fold CV Errors (%) based on ['Latancy', 'Jitter']: 14.7969+/-2.36628
+	> fps Mean 10-fold CV Errors (%) based on ['Latancy', 'Jitter']: 12.6173+/-1.97914
+
+    Number of Parameters:
+    > Trainable: 532489
+    > Non - Trainable: 0
+    => Total: 532489
+    => Mean runtime: 00:00:05.05[H:M:S]
+
+***************************************************************
+***********************************************************************
+           10-Folds CV Final Results
+***************************************************************
+LAYERS = [8]
+UNITS = [255]
+FEATURES = ['L', 'J']
+	> NIQE Mean 10-fold CV Errors (%) based on ['L', 'J']: 3.9319+/-0.42735
+	> R Mean 10-fold CV Errors (%) based on ['L', 'J']: 13.9346+/-2.09651
+	> FPS Mean 10-fold CV Errors (%) based on ['L', 'J']: 11.5600+/-1.33014
+
+    Number of Parameters:
+    > Trainable: 532489
+    > Non - Trainable: 0
+    => Total: 532489
+    => Mean runtime: 00:00:05.14[H:M:S]
+
+**********************************************************************************************************************
+           10-Folds CV Final Results
+***************************************************************
+LAYERS = [8]
+UNITS = [512]
+FEATURES = ['L', 'J']
+	> NIQE Mean 10-fold CV Errors (%) based on ['L', 'J']: 3.9657+/-0.39575
+	> R Mean 10-fold CV Errors (%) based on ['L', 'J']: 14.0346+/-1.84453
+	> FPS Mean 10-fold CV Errors (%) based on ['L', 'J']: 11.7092+/-1.43160
+
+    Number of Parameters:
+    > Trainable: 2113545
+    > Non - Trainable: 0
+    => Total: 2113545
+    => Mean runtime: 00:00:05.39[H:M:S]
+
+***************************************************************
+***************************************************************
+           10-Folds CV Final Results
+***************************************************************
+LAYERS = [8]
+UNITS = [1024]
+FEATURES = ['L', 'J']
+	> NIQE Mean 10-fold CV Errors (%) based on ['L', 'J']: 3.9874+/-0.53059
+	> R Mean 10-fold CV Errors (%) based on ['L', 'J']: 13.9112+/-1.85408
+	> FPS Mean 10-fold CV Errors (%) based on ['L', 'J']: 11.4716+/-1.44264
+
+    Number of Parameters:
+    > Trainable: 8421385
+    > Non - Trainable: 0
+    => Total: 8421385
+    => Mean runtime: 00:00:06.78[H:M:S]
+
+***************************************************************
+***************************************************************
+           10-Folds CV Final Results
+***************************************************************
+LAYERS = [8]
+UNITS = [2048]
+FEATURES = ['L', 'J']
+	> NIQE Mean 10-fold CV Errors (%) based on ['L', 'J']: 3.9366+/-0.50667
+	> R Mean 10-fold CV Errors (%) based on ['L', 'J']: 13.8821+/-1.98618
+	> FPS Mean 10-fold CV Errors (%) based on ['L', 'J']: 11.4585+/-1.50052
+
+    Number of Parameters:
+    > Trainable: 33619977
+    > Non - Trainable: 0
+    => Total: 33619977
+    => Mean runtime: 00:00:13.1[H:M:S]
+
+***************************************************************
