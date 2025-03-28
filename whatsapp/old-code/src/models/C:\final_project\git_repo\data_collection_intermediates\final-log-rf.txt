@@ -1,0 +1,82 @@
+
+===================================================
+Train net condition: bandwidth falls loss
+Test net condition: bandwidth
+Metric: fps
+Estimation_method: ip-udp-ml
+
+===================================================
+Train net condition: bandwidth falls loss
+Test net condition: bandwidth
+Metric: fps
+Estimation_method: ip-udp-ml
+
+===================================================
+Train net condition: bandwidth falls loss
+Test net condition: bandwidth
+Metric: fps
+Estimation_method: ip-udp-ml
+
+===================================================
+Train net condition: bandwidth falls loss
+Test net condition: bandwidth
+Metric: fps
+Estimation_method: ip-udp-ml
+2025-03-15 12:24:16.263395	Experiment : fps_bandwidth-falls-loss_ip-udp-ml_bandwidth_cv_idx1 || MAE_avg = 1.68 || R2_avg = 0.18 || Accuracy_avg = 84.44
+2025-03-15 13:47:38.622784	Experiment : fps_bandwidth-falls-loss_ip-udp-ml_bandwidth_cv_idx2 || MAE_avg = 1.72 || R2_avg = 0.26 || Accuracy_avg = 82.69
+2025-03-15 14:33:14.648923	Experiment : fps_bandwidth-falls-loss_ip-udp-ml_bandwidth_cv_idx3 || MAE_avg = 1.67 || R2_avg = 0.13 || Accuracy_avg = 85.02
+
+===================================================
+Train net condition: bandwidth falls loss
+Test net condition: bandwidth
+Metric: fps
+Estimation_method: ip-udp-ml
+
+===================================================
+Train net condition: bandwidth falls loss
+Test net condition: bandwidth
+Metric: fps
+Estimation_method: ip-udp-ml
+
+===================================================
+Train net condition: bandwidth falls loss
+Test net condition: bandwidth
+Metric: fps
+Estimation_method: ip-udp-ml
+
+===================================================
+Train net condition: bandwidth falls loss
+Test net condition: bandwidth
+Metric: fps
+Estimation_method: ip-udp-ml
+
+===================================================
+Train net condition: bandwidth falls loss
+Test net condition: bandwidth
+Metric: fps
+Estimation_method: ip-udp-ml
+
+===================================================
+Train net condition: bandwidth falls loss
+Test net condition: bandwidth
+Metric: fps
+Estimation_method: ip-udp-ml
+2025-03-15 23:45:38.990361	Experiment : fps_bandwidth-falls-loss_ip-udp-ml_bandwidth_cv_idx1 || MAE_avg = 1.73 || R2_avg = 0.17 || Accuracy_avg = 83.69
+2025-03-15 23:46:30.262488	Experiment : fps_bandwidth-falls-loss_ip-udp-ml_bandwidth_cv_idx2 || MAE_avg = 1.74 || R2_avg = 0.28 || Accuracy_avg = 83.23
+2025-03-15 23:47:21.488977	Experiment : fps_bandwidth-falls-loss_ip-udp-ml_bandwidth_cv_idx3 || MAE_avg = 1.65 || R2_avg = 0.2 || Accuracy_avg = 85.4
+2025-03-15 23:48:12.759197	Experiment : fps_bandwidth-falls-loss_ip-udp-ml_bandwidth_cv_idx4 || MAE_avg = 1.38 || R2_avg = 0.36 || Accuracy_avg = 88.5
+2025-03-15 23:49:04.654979	Experiment : fps_bandwidth-falls-loss_ip-udp-ml_bandwidth_cv_idx5 || MAE_avg = 1.02 || R2_avg = -0.34 || Accuracy_avg = 92.05
+
+===================================================
+Train net condition: bandwidth falls loss
+Test net condition: falls
+Metric: fps
+Estimation_method: ip-udp-ml
+
+===================================================
+Train net condition: bandwidth falls loss
+Test net condition: bandwidth
+Metric: fps
+Estimation_method: ip-udp-ml
+2025-03-16 22:43:46.095965	Experiment : fps_bandwidth-falls-loss_ip-udp-ml_bandwidth_cv_idx1 || MAE_avg = 1.72 || R2_avg = 0.19 || Accuracy_avg = 84.07
+2025-03-17 13:20:24.018857	Experiment : fps_bandwidth-falls-loss_ip-udp-ml_bandwidth_cv_idx2 || MAE_avg = 1.65 || R2_avg = 0.32 || Accuracy_avg = 83.99

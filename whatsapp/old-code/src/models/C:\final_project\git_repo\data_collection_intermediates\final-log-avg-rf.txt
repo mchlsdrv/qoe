@@ -1,0 +1,73 @@
+
+===================================================
+Train net condition: bandwidth falls loss
+Test net condition: bandwidth
+Metric: fps
+Estimation_method: ip-udp-ml
+
+===================================================
+Train net condition: bandwidth falls loss
+Test net condition: bandwidth
+Metric: fps
+Estimation_method: ip-udp-ml
+
+===================================================
+Train net condition: bandwidth falls loss
+Test net condition: bandwidth
+Metric: fps
+Estimation_method: ip-udp-ml
+
+===================================================
+Train net condition: bandwidth falls loss
+Test net condition: bandwidth
+Metric: fps
+Estimation_method: ip-udp-ml
+
+===================================================
+Train net condition: bandwidth falls loss
+Test net condition: bandwidth
+Metric: fps
+Estimation_method: ip-udp-ml
+
+===================================================
+Train net condition: bandwidth falls loss
+Test net condition: bandwidth
+Metric: fps
+Estimation_method: ip-udp-ml
+
+===================================================
+Train net condition: bandwidth falls loss
+Test net condition: bandwidth
+Metric: fps
+Estimation_method: ip-udp-ml
+
+===================================================
+Train net condition: bandwidth falls loss
+Test net condition: bandwidth
+Metric: fps
+Estimation_method: ip-udp-ml
+
+===================================================
+Train net condition: bandwidth falls loss
+Test net condition: bandwidth
+Metric: fps
+Estimation_method: ip-udp-ml
+
+===================================================
+Train net condition: bandwidth falls loss
+Test net condition: bandwidth
+Metric: fps
+Estimation_method: ip-udp-ml
+2025-03-15 23:49:04.697656	Experiment : fps_bandwidth-falls-loss || MAE_avg = 1.5 || R2_avg = 0.27 || acc_avg = 86.57
+
+===================================================
+Train net condition: bandwidth falls loss
+Test net condition: falls
+Metric: fps
+Estimation_method: ip-udp-ml
+
+===================================================
+Train net condition: bandwidth falls loss
+Test net condition: bandwidth
+Metric: fps
+Estimation_method: ip-udp-ml

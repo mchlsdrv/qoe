@@ -6,7 +6,7 @@ __pycache__/
 # C extensions
 *.so
 
-#LaTex
+# LaTex
 *.aux
 *.bbl
 *.blg
@@ -15,10 +15,24 @@ __pycache__/
 *.xml
 *.gz
 *-*.bib
+*.pdf
+*.tex
+*.bib
 
 # pycharm
 .idea
 .DS_Sotre
+
+# traffic files
+*.pcap
+
+# Checkpoint files
+*.ckpt
+
+# Images
+*.png
+*.jpeg
+*.jpg
 
 # Archives
 *.zip
