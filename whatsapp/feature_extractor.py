@@ -1,5 +1,8 @@
+import datetime
 import os
 import pathlib
+import time
+
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
@@ -303,6 +306,7 @@ def extract_features(feature_extractor: FeatureExtractor, pcap_file: pathlib.Pat
 
 
 def main():
+    t_start = time.time()
     feat_extrctr = FeatureExtractor(
         time_window=TIME_WINDOW,
         video_ptype=[VIDEO_TYPE],
@@ -354,7 +358,7 @@ def main():
                     else:
                         kbps = int(date_kbps[-1][:kbps.index('K')])  # strip the Kbps and convert to int
                 except ValueError as err:
-                    print(f'ValueError: {kbps}')
+                    print(f'\nValueError: {kbps}')
                     kbps = -1
 
 
@@ -396,17 +400,27 @@ def main():
 
     # - Reset the index to be increasing
     piat_features_labels_df = piat_features_labels_df.reset_index(drop=True)
+    # - Rearrange the columns to have the first 1-9 columns the summary features, the columns 10-15 the features related to the metadata, features 16-self.max_packets_in_time_window are the microscopic packet features,
+    # and finally the self.max_packets_in_time_window-elf.max_packets_in_time_window + 3 are the labels
+    col_names = piat_features_labels_df.columns
+    piat_features_labels_df = piat_features_labels_df.loc[:, [*col_names[:10], *col_names[-5:], *col_names[10:-5]]]
 
     # - Save the PIAT features - labels data
     piat_features_labels_df.to_csv(OUTPUT_DIR / 'piat_features_labels.csv', index=False)
 
     # - Reset the index to be increasing
     packet_size_features_labels_df = packet_size_features_labels_df.reset_index(drop=True)
+    # - Rearrange the columns to have the first 1-9 columns the summary features, the columns 10-15 the features related to the metadata, features 16-self.max_packets_in_time_window are the microscopic packet features,
+    # and finally the self.max_packets_in_time_window-elf.max_packets_in_time_window + 3 are the labels
+    col_names = packet_size_features_labels_df.columns
+    packet_size_features_labels_df = packet_size_features_labels_df.loc[:, [*col_names[:10], *col_names[-5:], *col_names[10:-5]]]
 
     # - Save the packet size features - labels data
     packet_size_features_labels_df.to_csv(OUTPUT_DIR / 'packet_size_features_labels.csv', index=False)
 
-    print('Done!')
+    print('> Done!')
+    print(f'\t - Feature extraction took: {datetime.timedelta(seconds=time.time() - t_start)}')
+
 
 
 if __name__ == '__main__':

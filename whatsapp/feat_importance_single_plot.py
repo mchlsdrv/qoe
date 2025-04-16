@@ -106,21 +106,23 @@ def compute_feature_importance(model, x, y, features, name: str, scoring: str, a
 
 
 
-# LABEL = 'NIQE'
-# LABEL = 'FPS'
-LABEL = 'R'
-SAVE_DIR = pathlib.Path(f'./outputs/feat_importance_{LABEL.lower()}')
+LABEL = 'piqe'
+# LABEL = 'fps'
+# LABEL = 'brisque'
+SAVE_DIR = pathlib.Path(f'/Users/mchlsdrv/Desktop/projects/phd/qoe/whatsapp/output')
 os.makedirs(SAVE_DIR, exist_ok=True)
 SAVE_DIR.is_dir()
 REGRESSOR = LinearRegression
-DATA_FILE = pathlib.Path('./data/data_no_nan.csv')
+DATA_FILE = pathlib.Path('/Users/mchlsdrv/Desktop/projects/phd/qoe/whatsapp/output/packet_size_features_labels.csv')
 data_df = pd.read_csv(DATA_FILE)
 data_df.head()
-FEATURES = ['BW', 'PPS', 'ATP', 'PL', 'L', 'J', 'DP', 'SP', 'IS']  # 3.14+/-2.815, 11.30+/-20.179, 10.89+/-23.477
+FEATURES = np.setdiff1d(data_df.columns.values, ['brisque', 'fps', 'limiting_parameter', 'date', 'kbps', 'bandwidth', 'file_name', 'max_packets_in_time_window', 'window_end_time_stamp'])
+FEATURES
 
-
+data_df = data_df.loc[:, FEATURES]
 data_df, _, _ = normalize_columns(data_df=data_df, columns=FEATURES)
 X_TRAIN = data_df.loc[:, FEATURES].values
+LABEL
 Y_TRAIN = data_df.loc[:, [LABEL]].values
 
 coeff_fig, coeff_ax = plt.subplots(2, 4, figsize=(120, 50), constrained_layout=True)
