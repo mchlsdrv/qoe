@@ -19,7 +19,7 @@ def calc_errors(true, predicted):
 def normalize_columns(data_df, columns):
     data_df = data_df.astype(float)
     mu, std = data_df.loc[:, columns].mean(), data_df.loc[:, columns].std()
-    data_df.loc[:, columns] = (data_df.loc[:, columns] - mu) / std
+    data_df.loc[:, columns] = (data_df.loc[:, columns] - mu) / (std + EPSILON)
     return data_df, mu, std
 
 
