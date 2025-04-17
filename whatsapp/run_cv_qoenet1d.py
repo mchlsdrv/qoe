@@ -7,16 +7,16 @@ import pandas as pd
 from matplotlib import pyplot as plt
 from tqdm import tqdm
 
-from configs.params import VAL_PROP, LR_REDUCTION_FREQ, LR_REDUCTION_FCTR, DROPOUT_START, DROPOUT_P
+from configs.params import VAL_PROP, LR_REDUCTION_FREQ, LR_REDUCTION_FCTR, DROPOUT_START, DROPOUT_P, EPSILON
 from models import QoENet1D
-from regression_utils import calc_errors
+from regression_utils import calc_errors, normalize_columns
 from utils.data_utils import get_train_val_split, QoEDataset
 from utils.train_utils import run_train
 import torch
 
 
 def min_max_norm(data: pd.DataFrame):
-    data /= (data.max() - data.min())
+    data /= (data.max() - data.min() + EPSILON)
 
 
 def get_data(train_df: pd.DataFrame, test_df: pd.DataFrame, features: list, labels: list, batch_size: int = None, val_prop: float = None):
@@ -90,6 +90,7 @@ def get_data(train_df: pd.DataFrame, test_df: pd.DataFrame, features: list, labe
 
     return train_data, val_data, test_data, test_ds
 
+
 def train_model(model, epochs, train_data_loader, validation_data_loader, loss_function, optimizer, learning_rate, save_dir):
     # - Train
     # - Create the train directory
@@ -125,14 +126,23 @@ def train_model(model, epochs, train_data_loader, validation_data_loader, loss_f
     plt.savefig(train_save_dir / 'train_val_loss.png')
     plt.close()
 
+
 def run_cv(model, cv_root_dir: pathlib.Path, n_folds: int, features: list, labels: list, output_dir: pathlib.Path or None, nn_params: dict):
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
     results = pd.DataFrame(columns=['true', 'predicted', 'error (%)'], dtype=np.float32)
     for fold_dir in os.listdir(cv_root_dir):
         if fold_dir[0] != '.':
+
+            feat_lbls_names = [*features, *labels]
             train_df = pd.read_csv(cv_root_dir / fold_dir / 'train_data.csv')
+            train_df = train_df.loc[:, feat_lbls_names]
+            train_df, _, _ = normalize_columns(data_df=train_df, columns=[*features])
+
             test_df = pd.read_csv(cv_root_dir / fold_dir / 'test_data.csv')
+            test_df = test_df.loc[:, feat_lbls_names]
+            test_df, _, _ = normalize_columns(data_df=test_df, columns=[*features])
+
             train_data, val_data, test_data, test_ds = get_data(
                 train_df=train_df,
                 test_df=test_df,
@@ -220,13 +230,18 @@ def predict(model: torch.nn.Module, data_loader: torch.utils.data.DataLoader, de
             y_pred = np.append(y_pred, preds.cpu().numpy())
 
     return y_true, y_pred
+
+
+DATA_TYPE = 'packet_size'
+# DATA_TYPE = 'piat'
+
 TS = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
-CV_ROOT_DIR = pathlib.Path('/home/mchlsdrv/Desktop/projects/phd/qoe/whatsapp/data/packet_size_cv_10_folds_float')
-OUTPUT_DIR = pathlib.Path(f'/home/mchlsdrv/Desktop/projects/phd/qoe/whatsapp/output/cv_{TS}')
+CV_ROOT_DIR = pathlib.Path('C:\\Users\\msidorov\\Desktop\\projects\\qoe\\whatsapp\\data\\packet_size_cv_10_folds_float')
+OUTPUT_DIR = pathlib.Path(f'C:\\Users\\msidorov\\Desktop\\projects\\qoe\\whatsapp\\output\\cv_{TS}')
 os.makedirs(OUTPUT_DIR)
 
-FEATURES = [
+PAKET_SIZE_FEATURES = [
     'number_of_packet_sizes_in_time_window',
     'number_of_unique_packet_sizes_in_time_window',
     'min_packet_size',
@@ -237,7 +252,20 @@ FEATURES = [
     'q2_packet_size',
     'q3_packet_size',
 ]
-LABELS = ['brisque', 'piqe', 'fps']
+
+PIAT_FEATURES = [
+    'number_of_piats_in_time_window',
+    'number_of_unique_piats_in_time_window',
+    'min_piat',
+    'max_piat',
+    'mean_piat',
+    'std_piat',
+    'q1_piat',
+    'q2_piat',
+    'q3_piat',
+]
+LABELS = ['brisque']
+# LABELS = ['brisque', 'piqe', 'fps']
 EPOCHS = 50
 BATCH_SIZE = 64
 N_LAYERS = 64
@@ -250,7 +278,7 @@ if __name__ == '__main__':
     run_cv(
         model=QoENet1D,
         n_folds=10,
-        features=FEATURES,
+        features=PAKET_SIZE_FEATURES if DATA_TYPE == 'packet_size' else PIAT_FEATURES,
         labels=LABELS,
         cv_root_dir=CV_ROOT_DIR,
         output_dir=OUTPUT_DIR,

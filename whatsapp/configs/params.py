@@ -5,7 +5,7 @@ import torch
 # -----------
 # - GENERAL -
 # -----------
-EPSILON = 1e-8
+EPSILON = 1e-9
 RANDOM_SEED = 0
 
 ROOT_DIR = pathlib.Path('./')

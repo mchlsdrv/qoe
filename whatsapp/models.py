@@ -222,8 +222,8 @@ class QoENet1D(torch.nn.Module):
         for lyr in range(self.n_layers):
             self._add_layer(n_in=self.n_units, n_out=self.n_units, activation=torch.nn.SiLU)
 
-        self._add_layer(n_in=self.n_units, n_out=self.n_labels, activation=torch.nn.Tanh)
-        # self._add_layer(n_in=self.n_units, n_out=self.n_labels, activation=torch.nn.ReLU)
+        # self._add_layer(n_in=self.n_units, n_out=self.n_labels, activation=torch.nn.Tanh)
+        self._add_layer(n_in=self.n_units, n_out=self.n_labels, activation=torch.nn.ReLU)
 
     def forward(self, x, p_drop: float = 0.0):
         tmp_in = x

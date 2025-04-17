@@ -48,10 +48,11 @@ def plot_feature_importance(
     axes.set_xticks(ticks=np.arange(len(features)), labels=features, rotation=45, ha='right')
     axes.set_title(title, fontweight='bold', fontsize=120)
 
+
 def calc_coefficient_importance(model, features, name: str, axes: plt.axes, log_file):
     try:
         coeffs = model.coef_.flatten()
-    except AttributeError as err:
+    except AttributeError:
         coeffs = model.feature_importances_
     feats_coeffs = list(zip(features, coeffs))
     feats_coeffs = sorted(feats_coeffs, key=lambda x: np.abs(x[1]))[::-1]
@@ -108,6 +109,7 @@ def compute_feature_importance(model, x, y, features, name: str, scoring: str, a
     )
     print(f'\t\t\t\t- Done! Feature importance calculation took {datetime.timedelta(seconds=time.time() - t_strt)}')
 
+
 def fit_model(model, x, y, model_name: str):
     print('\n\t\t\t============================================')
     print(f'\t\t\tTraining {model_name} model ...')
@@ -163,7 +165,7 @@ def run_feature_importance_analysis(x, y, features: list, file_name_prefix: str,
             scoring='neg_mean_squared_error',
             name='Elastic Net Regression',
             axes=[coeff_ax[0, 2], permut_ax[0, 2]],
-            log_file = log_file
+            log_file=log_file
         )
 
         # - Decision Trees
@@ -177,7 +179,7 @@ def run_feature_importance_analysis(x, y, features: list, file_name_prefix: str,
             scoring='neg_mean_squared_error',
             name='Decision Tree',
             axes=[coeff_ax[0, 3], permut_ax[0, 3]],
-            log_file = log_file
+            log_file=log_file
         )
 
         # - Random Forest
@@ -242,6 +244,7 @@ def run_feature_importance_analysis(x, y, features: list, file_name_prefix: str,
         permut_fig.savefig(save_dir / f'{file_name_prefix}_feature_importance_permut_test.png')
         plt.close(permut_fig)
 
+
 def main():
     params = list(itertools.product(DATA_TYPES, LIMITING_PARAMETERS, LABELS))
 
@@ -272,6 +275,7 @@ def main():
             save_dir=save_dir
         )
 
+
 OUTPUT_DIR = pathlib.Path('/Users/mchlsdrv/Desktop/projects/phd/qoe/whatsapp/output/feature_importance_analysis')
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 DATA_FILES = {
@@ -284,7 +288,7 @@ DATA_TYPES = [
 ]
 LIMITING_PARAMETERS = ['bandwidth', 'loss', 'falls', 'all']
 LABELS = ['piqe', 'brisque', 'fps']
-COLUMN_NAMES ={
+COLUMN_NAMES = {
     'number_of_packet_sizes_in_time_window': '# pckts',
     'number_of_unique_packet_sizes_in_time_window': '# pckts unq',
     'mean_packet_size': 'Mean',

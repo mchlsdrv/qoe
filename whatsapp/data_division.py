@@ -55,10 +55,10 @@ def build_test_datasets(data: pd.DataFrame, n_folds: int,  root_save_dir: pathli
         test_data.to_csv(test_set_save_dir / f'test_data.csv', index=False)
 
 
-DATA_NAME = 'piat'
+DATA_NAME = 'packet_size'
 N_FOLDS = 10
-DATA_ROOT_DIR = pathlib.Path(f'/home/mchlsdrv/Desktop/projects/phd/qoe/whatsapp/data')
-DATA_SET_PATH = DATA_ROOT_DIR / f'piat_features_labels.csv'
+DATA_ROOT_DIR = pathlib.Path(f'C:\\Users\\msidorov\\Desktop\\projects\\qoe\\whatsapp\\data')
+DATA_SET_PATH = DATA_ROOT_DIR / f'packet_size_features_labels.csv'
 SAVE_DIR = DATA_ROOT_DIR / f'{DATA_NAME}_cv_{N_FOLDS}_folds_float'
 
 if __name__ == '__main__':
