@@ -141,8 +141,9 @@ class AutoEncoder(torch.nn.Module):
         def code_length(self, value):
             self._code_length = value
 
-    def __init__(self, n_features, code_length, layer_activation, reverse: bool = False, save_dir: str or pathlib.Path = pathlib.Path('./outputs')):
+    def __init__(self, model_name: str, n_features, code_length, layer_activation, reverse: bool = False, save_dir: str or pathlib.Path = pathlib.Path('./output')):
         super().__init__()
+        self.model_name = model_name
         self.n_features = n_features
         self.code_length = code_length
         self.layer_activation = layer_activation
@@ -198,9 +199,9 @@ class AutoEncoder(torch.nn.Module):
 
 
 class QoENet1D(torch.nn.Module):
-    def __init__(self, name: str, input_size, output_size, n_units, n_layers, ):
+    def __init__(self, model_name: str, input_size, output_size, n_units, n_layers):
         super().__init__()
-        self.name = name
+        self.model_name = model_name
         self.input_size = input_size
         self.output_size = output_size
         self.n_layers = n_layers
@@ -245,8 +246,9 @@ class QoENet1D(torch.nn.Module):
 
 
 class GCNClassifier(torch.nn.Module):
-    def __init__(self, in_channels, hidden_channels, out_channels):
+    def __init__(self, model_name: str, in_channels, hidden_channels, out_channels):
         super().__init__()
+        self.model_name = model_name
         self.conv1 = GCNConv(in_channels, hidden_channels)
         self.conv2 = GCNConv(hidden_channels, out_channels)
 
@@ -259,8 +261,9 @@ class GCNClassifier(torch.nn.Module):
 
 
 class GCNRegressor(torch.nn.Module):
-    def __init__(self, in_channels, hidden_channels):
+    def __init__(self, model_name: str, in_channels, hidden_channels):
         super().__init__()
+        self.model_name = model_name
         self.conv1 = GCNConv(in_channels, hidden_channels)
         self.conv2 = GCNConv(hidden_channels, 1)
 
@@ -272,11 +275,12 @@ class GCNRegressor(torch.nn.Module):
 
 
 class TransformerForRegression(torch.nn.Module):
-    def __init__(self, model_name):
+    def __init__(self, model_name: str):
         super().__init__()
 
-        self.config = AutoConfig.from_pretrained(model_name)
-        self.transformer = AutoModel.from_pretrained(model_name, config=self.config)
+        self.model_name = model_name
+        self.config = AutoConfig.from_pretrained(self.model_name)
+        self.transformer = AutoModel.from_pretrained(self.model_name, config=self.config)
         self.regressor = torch.nn.Linear(self.config.hidden_size, 1)
 
     def forward(self, input_ids, attention_mask):

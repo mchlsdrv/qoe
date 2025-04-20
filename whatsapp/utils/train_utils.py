@@ -8,17 +8,20 @@ import torch.utils.data
 from tqdm import tqdm
 
 from configs.params import VAL_PROP, DEVICE, LR_REDUCTION_FREQ, LR_REDUCTION_FCTR, DROPOUT_START, DROPOUT_P
+from models import TransformerForRegression
 from regression_utils import calc_errors
 from utils.aux_funcs import run_pca, get_number_of_parameters, unstandardize_results, get_errors, plot_losses
 from utils.data_utils import get_train_val_split, QoEDataset, calc_data_reduction, normalize_columns, get_data
 
 
 def save_checkpoint(model, optimizer, filename: str or pathlib.Path):
+    filename = pathlib.Path(filename)
     print(f'=> Saving checkpoint to \'{filename}\' ...')
     state = dict(
         state_dict=model.state_dict(),
         optimizer=optimizer.state_dict(),
     )
+    os.makedirs(filename.parent, exist_ok=True)
     torch.save(state, filename)
 
 
@@ -49,7 +52,8 @@ def train_model(model, epochs, train_data_loader, validation_data_loader, loss_f
         dropout_epoch_start=DROPOUT_START,
         p_dropout_init=DROPOUT_P,
         tokenize=tokenize,
-        device=device
+        device=device,
+        save_dir=save_dir
     )
 
     # - Save the train / val loss metadata
@@ -160,7 +164,7 @@ def run_train(
             save_checkpoint(
                 model=model,
                 optimizer=optimizer,
-                filename=save_dir / f'Epoch_{epch}_checkpoint.ckpt'
+                filename=save_dir / f'checkpoints/epoch_{epch}_checkpoint.ckpt'
             )
 
         print(f'''
@@ -366,7 +370,8 @@ def search_parameters(
                                         lr_reduce_factor=LR_REDUCTION_FCTR,
                                         dropout_epoch_start=DROPOUT_START,
                                         p_dropout_init=DROPOUT_P,
-                                        device=DEVICE
+                                        device=DEVICE,
+                                        save_dir=save_dir
                                     )
 
                                     # - Save the train / val loss metadata
@@ -497,17 +502,17 @@ Status:
     test_metadata.to_csv(save_dir / 'test_metadata.csv', index=False)
 
 
-def run_cv(model, model_params: dict, cv_root_dir: pathlib.Path, n_folds: int, features: list, labels: list, output_dir: pathlib.Path or None, nn_params: dict):
-    tokenize = True if model_params.get('name') in ['BERT'] else False
+def run_cv(model, model_params: dict, cv_root_dir: pathlib.Path, n_folds: int, features: list, labels: list, save_dir: pathlib.Path or None, nn_params: dict):
+    tokenize = True if isinstance(model_params.get('model'), TransformerForRegression) else False
 
     train_data_reductions = np.array([])
     test_data_reductions = np.array([])
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
     results = pd.DataFrame(columns=['true', 'predicted', 'error (%)'], dtype=np.float32)
-    for fold_dir in os.listdir(cv_root_dir):
+    for idx, fold_dir in enumerate(os.listdir(cv_root_dir)):
         if fold_dir[0] != '.':
-
+            cv_save_dir = save_dir / f'cv{idx+1}'
             feat_lbls_names = [*features, *labels]
 
             # - Train data
@@ -561,7 +566,7 @@ def run_cv(model, model_params: dict, cv_root_dir: pathlib.Path, n_folds: int, f
                     loss_function=nn_params.get('loss_function'),
                     optimizer=nn_params.get('optimizer'),
                     learning_rate=nn_params.get('learning_rate'),
-                    save_dir=output_dir,
+                    save_dir=cv_save_dir,
                     tokenize=tokenize
                 )
                 y_test, y_pred = predict(model=mdl, data_loader=test_data, device=device)
@@ -590,8 +595,8 @@ def run_cv(model, model_params: dict, cv_root_dir: pathlib.Path, n_folds: int, f
                 )
             ], ignore_index=True)
 
-    if isinstance(output_dir, pathlib.Path):
-        results.to_csv(output_dir / 'final_results.csv')
+    if isinstance(save_dir, pathlib.Path):
+        results.to_csv(save_dir / 'final_results.csv')
     mean_error = results.loc[:, "error (%)"].mean()
     std_error = results.loc[:, "error (%)"].std()
     print(f'''
