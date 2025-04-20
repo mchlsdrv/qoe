@@ -62,10 +62,12 @@ def run_train(
         print(f'\t ** INFO ** p_drop = {p_drop:.4f}')
         btch_train_losses = np.array([])
         btch_pbar = tqdm.tqdm(train_data_loader)
-        for (X, Y) in btch_pbar:
+        for (X, att_msk, Y) in btch_pbar:
             X = X.to(device)
+            X = X.view(X.shape[0], X.shape[2])
+            att_msk = att_msk.to(device)
             Y = Y.to(device)
-            results = model(X, p_drop=p_drop)
+            results = model(input_ids=X, attention_mask=att_msk)
             loss = loss_function(results, Y)
 
             optimizer.zero_grad()

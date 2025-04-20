@@ -4,15 +4,117 @@ import pathlib
 
 import numpy as np
 import pandas as pd
+import scipy
+import sklearn
 from matplotlib import pyplot as plt
 from tqdm import tqdm
 
-from configs.params import VAL_PROP, LR_REDUCTION_FREQ, LR_REDUCTION_FCTR, DROPOUT_START, DROPOUT_P, EPSILON
+from configs.params import VAL_PROP, LR_REDUCTION_FREQ, LR_REDUCTION_FCTR, DROPOUT_START, DROPOUT_P, EPSILON, OUTLIER_TH
 from models import QoENet1D
 from regression_utils import calc_errors, normalize_columns
-from utils.data_utils import get_train_val_split, QoEDataset
+from utils.data_utils import get_train_val_split
 from utils.train_utils import run_train
 import torch
+from transformers import AutoModel, AutoTokenizer, AutoConfig
+
+
+class QoEDataset(torch.utils.data.Dataset):
+    def __init__(self, data_df: pd.DataFrame, feature_columns: list, label_columns: list, normalize_features: bool = False, normalize_labels: bool = False, pca=None, remove_outliers: bool = False):
+        super().__init__()
+        self.tocknzr = AutoTokenizer.from_pretrained('bert-base-uncased')
+        self.data_df = data_df
+
+        self.rmv_outliers = remove_outliers
+
+        self.feature_columns = feature_columns
+        self.feature_df = None
+
+        self.label_columns = label_columns
+        self.label_df = None
+
+        self.labels_mu, self.labels_std = .0, .0
+
+        self.pca = pca
+
+        self.normalize_features = normalize_features
+
+        self.normalize_labels = normalize_labels
+
+        self.prepare_data()
+
+    def __len__(self):
+        return len(self.data_df)
+
+    def __getitem__(self, index):
+        X, y = self.feature_df.iloc[index].values, self.label_df.iloc[index].values
+        tocks = self.tocknzr([str(X)], padding='max_length', truncation=True)
+        X, att_msk = tocks.get('input_ids'), tocks.get('attention_mask')
+        return torch.as_tensor(X, dtype=torch.int64), torch.as_tensor(att_msk, dtype=torch.int64), torch.as_tensor(y, dtype=torch.float32)
+
+    def prepare_data(self):
+        # 1) Drop unused columns
+        cols2drop = np.setdiff1d(list(self.data_df.columns), np.union1d(self.feature_columns, self.label_columns))
+        self.data_df = self.data_df.drop(columns=cols2drop)
+
+        # 2) Clean Na lines
+        self.data_df = self.data_df.loc[self.data_df.isna().sum(axis=1) == 0]
+
+        # 3) Outliers removal
+        if self.rmv_outliers:
+            self.data_df = self.remove_outliers(data_df=self.data_df, std_th=OUTLIER_TH)
+
+        # 4) Split to features and labels
+        self.feature_df = self.data_df.loc[:, self.feature_columns]
+        if self.normalize_features:
+            self.feature_df, _, _ = self.normalize_data(self.feature_df)
+
+        self.label_df = self.data_df.loc[:, self.label_columns]
+        if self.normalize_labels:
+            self.label_df, self.labels_mu, self.labels_std = self.normalize_data(self.label_df)
+
+        # 5) PCA on the features
+        if isinstance(self.pca, sklearn.decomposition.PCA):
+            self.feature_df = pd.DataFrame(np.dot(self.feature_df - self.pca.mean_, self.pca.components_.T))
+
+    @staticmethod
+    def normalize_data(data_df):
+        mu, std = data_df.mean(), data_df.std()
+        data_norm_df = (data_df - mu) / std
+        return data_norm_df, mu, std
+
+    @staticmethod
+    def remove_outliers(data_df: pd.DataFrame, std_th: int):
+
+        dataset_no_outliers = data_df.loc[(np.abs(scipy.stats.zscore(data_df)) < std_th).all(axis=1)]
+
+        L = len(data_df)
+        N = len(dataset_no_outliers)
+        R = 100 - N * 100 / L
+        print(f'''
+    Outliers
+        Total before reduction: {L}
+        Total after reduction: {N}
+        > Present reduced: {R:.3f}%
+    ''')
+
+        return dataset_no_outliers
+
+    def unnormalize_labels(self, x):
+        return x * self.labels_std + self.labels_mu
+
+
+class TransformerForRegression(torch.nn.Module):
+    def __init__(self, model_name):
+        super().__init__()
+
+        self.config = AutoConfig.from_pretrained(model_name)
+        self.transformer = AutoModel.from_pretrained(model_name, config=self.config)
+        self.regressor = torch.nn.Linear(self.config.hidden_size, 1)
+
+    def forward(self, input_ids, attention_mask):
+        outputs = self.transformer(input_ids=input_ids, attention_mask=attention_mask)
+        pooled_output = outputs.last_hidden_state[:, 0]
+        return self.regressor(pooled_output)
 
 
 def min_max_norm(data: pd.DataFrame):
@@ -182,12 +284,7 @@ def run_cv(model, cv_root_dir: pathlib.Path, n_folds: int, features: list, label
                 # - For NN-based models
 
                 # - Build the model
-                mdl = model(
-                    n_features=len(features),
-                    n_labels=len(labels),
-                    n_layers=nn_params.get('n_layers'),
-                    n_units=nn_params.get('n_units')
-                )
+                mdl = model(model_name='bert-base-uncased')
 
                 train_model(
                     model=mdl,
@@ -267,8 +364,8 @@ DATA_TYPE = 'packet_size'
 
 TS = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
-CV_ROOT_DIR = pathlib.Path('/home/mchlsdrv/Desktop/projects/phd/qoe/whatsapp/data/packet_size_cv_10_folds_float')
-OUTPUT_DIR = pathlib.Path(f'/home/mchlsdrv/Desktop/projects/phd/qoe/whatsapp/output/cv_{TS}')
+CV_ROOT_DIR = pathlib.Path('C:\\Users\\msidorov\\Desktop\\projects\\qoe\\whatsapp\\data\\packet_size_cv_10_folds_float')
+OUTPUT_DIR = pathlib.Path(f'C:\\Users\\msidorov\\Desktop\\projects\\qoe\\whatsapp\\output\\cv_{TS}')
 os.makedirs(OUTPUT_DIR)
 
 PAKET_SIZE_FEATURES = [
@@ -305,10 +402,11 @@ N_UNITS = 512
 LOSS_FUNCTIONS = torch.nn.MSELoss
 OPTIMIZER = torch.optim.Adam
 LEARNING_RATE = 1e-3
+MODEL = TransformerForRegression
 
 if __name__ == '__main__':
     run_cv(
-        model=QoENet1D,
+        model=MODEL,
         n_folds=10,
         features=PAKET_SIZE_FEATURES if DATA_TYPE == 'packet_size' else PIAT_FEATURES,
         labels=LABELS,
