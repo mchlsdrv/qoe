@@ -12,10 +12,10 @@ DATA_TYPE = 'packet_size'
 
 TS = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
-# CV_ROOT_DIR = pathlib.Path('/home/mchlsdrv/Desktop/projects/phd/qoe/whatsapp/data/packet_size_cv_10_folds_float')
-CV_ROOT_DIR = pathlib.Path('C:\\Users\\msidorov\\Desktop\\projects\\qoe\\whatsapp\\data\\packet_size_cv_10_folds_float')
-# OUTPUT_DIR = pathlib.Path(f'/home/mchlsdrv/Desktop/projects/phd/qoe/whatsapp/output/cv_{TS}')
-OUTPUT_DIR = pathlib.Path(f'C:\\Users\\msidorov\\Desktop\\projects\\qoe\\whatsapp\\output')
+CV_ROOT_DIR = pathlib.Path('/home/mchlsdrv/Desktop/projects/phd/qoe/whatsapp/data/packet_size_cv_10_folds_float')
+# CV_ROOT_DIR = pathlib.Path('C:\\Users\\msidorov\\Desktop\\projects\\qoe\\whatsapp\\data\\packet_size_cv_10_folds_float')
+OUTPUT_DIR = pathlib.Path(f'/home/mchlsdrv/Desktop/projects/phd/qoe/whatsapp/output/cv_{TS}')
+# OUTPUT_DIR = pathlib.Path(f'C:\\Users\\msidorov\\Desktop\\projects\\qoe\\whatsapp\\output')
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 PAKET_SIZE_FEATURES = [
@@ -47,7 +47,7 @@ LABELS = ['fps']
 # LABELS = ['brisque', 'piqe', 'fps']
 EPOCHS = 500
 BATCH_SIZE = 254
-INPUT_SIZE = 10
+INPUT_SIZE = 9
 OUTPUT_SIZE = 1
 N_LAYERS = 32
 N_UNITS = 512

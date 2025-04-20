@@ -65,6 +65,24 @@ def train_model(model, epochs, train_data_loader, validation_data_loader, loss_f
     plt.close()
 
 
+def get_input_data(data, tokenize: bool, device: torch.cuda.device):
+    if tokenize:
+        X, att_msk, Y = data
+        X = X.to(device)
+        Y = Y.to(device)
+        att_msk = att_msk.to(device)
+
+        input_data = [X, att_msk]
+    else:
+        X, Y = data
+        X = X.to(device)
+        Y = Y.to(device)
+
+        input_data = [X]
+
+    return input_data, Y
+
+
 def run_train(
         model: torch.nn.Module, epochs: int,
         train_data_loader: torch.utils.data.DataLoader, val_data_loader: torch.utils.data.DataLoader,
@@ -103,15 +121,7 @@ def run_train(
         btch_pbar = tqdm(train_data_loader)
         for data in btch_pbar:
 
-            if tokenize:
-                X, att_msk, Y = data
-                X = X.to(device)
-                att_msk = att_msk.to(device)
-                Y = Y.to(device)
-                input_data = [X, att_msk]
-            else:
-                X, Y = data
-                input_data = [X]
+            input_data, Y = get_input_data(data=data, tokenize=tokenize, device=device)
 
             results = model(*input_data)
             loss = loss_function(results, Y)
@@ -135,15 +145,7 @@ def run_train(
         with torch.no_grad():
             for data in val_data_loader:
 
-                if tokenize:
-                    X, att_msk, Y = data
-                    X = X.to(device)
-                    att_msk = att_msk.to(device)
-                    Y = Y.to(device)
-                    input_data = [X, att_msk]
-                else:
-                    X, Y = data
-                    input_data = [X]
+                input_data, Y = get_input_data(data=data, tokenize=tokenize, device=device)
 
                 results = model(*input_data)
                 loss = loss_function(results, Y)
@@ -496,6 +498,8 @@ Status:
 
 
 def run_cv(model, model_params: dict, cv_root_dir: pathlib.Path, n_folds: int, features: list, labels: list, output_dir: pathlib.Path or None, nn_params: dict):
+    tokenize = True if model_params.get('name') in ['BERT'] else False
+
     train_data_reductions = np.array([])
     test_data_reductions = np.array([])
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
@@ -538,7 +542,8 @@ def run_cv(model, model_params: dict, cv_root_dir: pathlib.Path, n_folds: int, f
                 features=features,
                 labels=labels,
                 batch_size=nn_params.get('batch_size'),
-                val_prop=nn_params.get('val_prop')
+                val_prop=nn_params.get('val_prop'),
+                tokenize=tokenize
             )
 
             if isinstance(val_data, torch.utils.data.DataLoader):
@@ -557,7 +562,7 @@ def run_cv(model, model_params: dict, cv_root_dir: pathlib.Path, n_folds: int, f
                     optimizer=nn_params.get('optimizer'),
                     learning_rate=nn_params.get('learning_rate'),
                     save_dir=output_dir,
-                    tokenize=True if model_params.get('name') in ['BERT'] else False
+                    tokenize=tokenize
                 )
                 y_test, y_pred = predict(model=mdl, data_loader=test_data, device=device)
             else:

@@ -130,7 +130,7 @@ def min_max_norm(data: pd.DataFrame):
     data /= (data.max() - data.min() + EPSILON)
 
 
-def get_data(train_df: pd.DataFrame, test_df: pd.DataFrame, features: list, labels: list, batch_size: int = None, val_prop: float = None):
+def get_data(train_df: pd.DataFrame, test_df: pd.DataFrame, features: list, labels: list, batch_size: int = None, val_prop: float = None, tokenize: bool = False):
     train_data, val_data, test_data, test_ds = None, None, None, None
     if isinstance(batch_size, int) and isinstance(val_prop, float):
         # - Split into train / val
@@ -148,7 +148,7 @@ def get_data(train_df: pd.DataFrame, test_df: pd.DataFrame, features: list, labe
                 normalize_features=True,
                 normalize_labels=False,
                 remove_outliers=True,
-                tokenize=True
+                tokenize=tokenize
             ),
             batch_size=batch_size,
             shuffle=True,
@@ -167,7 +167,7 @@ def get_data(train_df: pd.DataFrame, test_df: pd.DataFrame, features: list, labe
                 normalize_features=True,
                 normalize_labels=False,
                 remove_outliers=True,
-                tokenize=True
+                tokenize=tokenize
             ),
             batch_size=val_batch_size if val_batch_size > 0 else 1,
             shuffle=False,
@@ -183,7 +183,7 @@ def get_data(train_df: pd.DataFrame, test_df: pd.DataFrame, features: list, labe
             label_columns=labels,
             normalize_features=True,
             normalize_labels=False,
-            tokenize=True
+            tokenize=tokenize
         )
         test_data = torch.utils.data.DataLoader(
             test_ds,
