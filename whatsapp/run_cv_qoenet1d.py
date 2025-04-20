@@ -35,7 +35,7 @@ def get_data(train_df: pd.DataFrame, test_df: pd.DataFrame, features: list, labe
                 feature_columns=features,
                 label_columns=labels,
                 normalize_features=True,
-                normalize_labels=True,
+                normalize_labels=False,
                 remove_outliers=True
             ),
             batch_size=batch_size,
@@ -53,7 +53,7 @@ def get_data(train_df: pd.DataFrame, test_df: pd.DataFrame, features: list, labe
                 feature_columns=features,
                 label_columns=labels,
                 normalize_features=True,
-                normalize_labels=True,
+                normalize_labels=False,
                 remove_outliers=True
             ),
             batch_size=val_batch_size if val_batch_size > 0 else 1,
@@ -69,7 +69,7 @@ def get_data(train_df: pd.DataFrame, test_df: pd.DataFrame, features: list, labe
             feature_columns=features,
             label_columns=labels,
             normalize_features=True,
-            normalize_labels=True,
+            normalize_labels=False,
         )
         test_data = torch.utils.data.DataLoader(
             test_ds,
@@ -126,8 +126,14 @@ def train_model(model, epochs, train_data_loader, validation_data_loader, loss_f
     plt.savefig(train_save_dir / 'train_val_loss.png')
     plt.close()
 
+def calc_reduction(original_size, reduced_size):
+    reduction_pct = 100 - 100 * reduced_size / original_size
+    return reduction_pct
+
 
 def run_cv(model, cv_root_dir: pathlib.Path, n_folds: int, features: list, labels: list, output_dir: pathlib.Path or None, nn_params: dict):
+    train_data_reductions = np.array([])
+    test_data_reductions = np.array([])
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
     results = pd.DataFrame(columns=['true', 'predicted', 'error (%)'], dtype=np.float32)
@@ -135,12 +141,31 @@ def run_cv(model, cv_root_dir: pathlib.Path, n_folds: int, features: list, label
         if fold_dir[0] != '.':
 
             feat_lbls_names = [*features, *labels]
+
+            # - Train data
             train_df = pd.read_csv(cv_root_dir / fold_dir / 'train_data.csv')
             train_df = train_df.loc[:, feat_lbls_names]
+            train_data_len_orig = len(train_df)
+
+            # -- Remove the test data rows where the label is 0
+            train_df = train_df.loc[train_df.loc[:, *labels] > 0]
+            train_data_len_reduced = len(train_df)
+            train_rdct_pct = calc_reduction(original_size=train_data_len_orig, reduced_size=train_data_len_reduced)
+            train_data_reductions = np.append(train_data_reductions, train_rdct_pct)
+
             train_df, _, _ = normalize_columns(data_df=train_df, columns=[*features])
 
+            # - Test data
             test_df = pd.read_csv(cv_root_dir / fold_dir / 'test_data.csv')
             test_df = test_df.loc[:, feat_lbls_names]
+            test_data_len_orig = len(test_df)
+
+            # -- Remove the test data rows where the label is 0
+            test_df = test_df.loc[test_df.loc[:, *labels] > 0]
+            test_data_len_reduced = len(test_df)
+            test_rdct_pct = calc_reduction(original_size=test_data_len_orig, reduced_size=test_data_len_reduced)
+            test_data_reductions = np.append(test_data_reductions, test_rdct_pct)
+
             test_df, _, _ = normalize_columns(data_df=test_df, columns=[*features])
 
             train_data, val_data, test_data, test_ds = get_data(
@@ -208,6 +233,10 @@ Mean Stats on {n_folds} CV for {labels}:
     Mean Errors (%)
     ---------------
     {mean_error:.2f}+/-{std_error:.3f}
+    
+    Mean reduced data (%)
+        - Train: {train_data_reductions.mean():.2f}+/-{train_data_reductions.std():.3f}
+        - Test: {test_data_reductions.mean():.2f}+/-{test_data_reductions.std():.3f}
     ''')
     return results
 
@@ -237,8 +266,8 @@ DATA_TYPE = 'packet_size'
 
 TS = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
-CV_ROOT_DIR = pathlib.Path('C:\\Users\\msidorov\\Desktop\\projects\\qoe\\whatsapp\\data\\packet_size_cv_10_folds_float')
-OUTPUT_DIR = pathlib.Path(f'C:\\Users\\msidorov\\Desktop\\projects\\qoe\\whatsapp\\output\\cv_{TS}')
+CV_ROOT_DIR = pathlib.Path('/home/mchlsdrv/Desktop/projects/phd/qoe/whatsapp/data/packet_size_cv_10_folds_float')
+OUTPUT_DIR = pathlib.Path(f'/home/mchlsdrv/Desktop/projects/phd/qoe/whatsapp/output/cv_{TS}')
 os.makedirs(OUTPUT_DIR)
 
 PAKET_SIZE_FEATURES = [
@@ -264,12 +293,14 @@ PIAT_FEATURES = [
     'q2_piat',
     'q3_piat',
 ]
-LABELS = ['brisque']
+# LABELS = ['brisque']
+# LABELS = ['piqe']
+LABELS = ['fps']
 # LABELS = ['brisque', 'piqe', 'fps']
-EPOCHS = 50
-BATCH_SIZE = 64
-N_LAYERS = 64
-N_UNITS = 16
+EPOCHS = 500
+BATCH_SIZE = 254
+N_LAYERS = 32
+N_UNITS = 512
 LOSS_FUNCTIONS = torch.nn.MSELoss
 OPTIMIZER = torch.optim.Adam
 LEARNING_RATE = 1e-3

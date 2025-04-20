@@ -56,13 +56,19 @@ def build_test_datasets(data: pd.DataFrame, n_folds: int,  root_save_dir: pathli
 
 
 DATA_NAME = 'packet_size'
+LABELS = ['brisque', 'piqe', 'fps']
 N_FOLDS = 10
-DATA_ROOT_DIR = pathlib.Path(f'C:\\Users\\msidorov\\Desktop\\projects\\qoe\\whatsapp\\data')
-DATA_SET_PATH = DATA_ROOT_DIR / f'packet_size_features_labels.csv'
+DATA_ROOT_DIR = pathlib.Path(f'/home/mchlsdrv/Desktop/projects/phd/qoe/whatsapp/data')
+DATA_SET_PATH = DATA_ROOT_DIR / f'{DATA_NAME}_features_labels.csv'
 SAVE_DIR = DATA_ROOT_DIR / f'{DATA_NAME}_cv_{N_FOLDS}_folds_float'
 
 if __name__ == '__main__':
     data_set = pd.read_csv(DATA_SET_PATH)
     if 'Unnamed: 0' in data_set.columns:
         DATA_SET = data_set.drop(columns=['Unnamed: 0'])
+
+    # - Clean the data points where labels are equal to 0, as it is not a realistic
+    for lbl in LABELS:
+        data_set = data_set.loc[data_set.loc[:, lbl] > 0]
+
     build_test_datasets(data=data_set, n_folds=N_FOLDS, root_save_dir=SAVE_DIR)
