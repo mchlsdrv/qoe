@@ -5,11 +5,12 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import torch
 import torch.utils.data
-import tqdm
+from tqdm import tqdm
 
 from configs.params import VAL_PROP, DEVICE, LR_REDUCTION_FREQ, LR_REDUCTION_FCTR, DROPOUT_START, DROPOUT_P
+from regression_utils import calc_errors
 from utils.aux_funcs import run_pca, get_number_of_parameters, unstandardize_results, get_errors, plot_losses
-from utils.data_utils import get_train_val_split, QoEDataset
+from utils.data_utils import get_train_val_split, QoEDataset, calc_data_reduction, normalize_columns, get_data
 
 
 def save_checkpoint(model, optimizer, filename: str or pathlib.Path):
@@ -27,6 +28,43 @@ def load_checkpoint(model, checkpoint_file: str or pathlib.Path):
     model.load_state_dict(checkpoint['state_dict'])
 
 
+def train_model(model, epochs, train_data_loader, validation_data_loader, loss_function, optimizer, learning_rate, save_dir, tokenize: bool =False):
+    # - Train
+    # - Create the train directory
+    train_save_dir = save_dir / f'train'
+    os.makedirs(train_save_dir, exist_ok=True)
+    device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+    model.to(device)
+
+    # - Train the model
+    train_losses, val_losses = run_train(
+        model=model,
+        epochs=epochs,
+        train_data_loader=train_data_loader,
+        val_data_loader=validation_data_loader,
+        loss_function=loss_function(),
+        optimizer=optimizer(model.parameters(), lr=learning_rate),
+        lr_reduce_frequency=LR_REDUCTION_FREQ,
+        lr_reduce_factor=LR_REDUCTION_FCTR,
+        dropout_epoch_start=DROPOUT_START,
+        p_dropout_init=DROPOUT_P,
+        tokenize=tokenize,
+        device=device
+    )
+
+    # - Save the train / val loss metadata
+    np.save(train_save_dir / 'train_losses.npy', train_losses)
+    np.save(train_save_dir / 'val_losses.npy', val_losses)
+
+    # - Plot the train / val losses
+    plt.plot(train_losses, label='train')
+    plt.plot(val_losses, label='val')
+    plt.suptitle('Train / Validation Loss Plot')
+    plt.legend()
+    plt.savefig(train_save_dir / 'train_val_loss.png')
+    plt.close()
+
+
 def run_train(
         model: torch.nn.Module, epochs: int,
         train_data_loader: torch.utils.data.DataLoader, val_data_loader: torch.utils.data.DataLoader,
@@ -36,6 +74,7 @@ def run_train(
         checkpoint_file: pathlib.Path = None,
         checkpoint_save_frequency: int = 10,
         device: torch.device = torch.device('cpu'),
+        tokenize: bool = False,
         save_dir: str or pathlib.Path = pathlib.Path('./outputs')
 ):
     # - Load the checkpoint to continue training
@@ -61,13 +100,20 @@ def run_train(
         print(f'Epoch: {epch}/{epochs} ({100 * epch / epochs:.2f}% done)')
         print(f'\t ** INFO ** p_drop = {p_drop:.4f}')
         btch_train_losses = np.array([])
-        btch_pbar = tqdm.tqdm(train_data_loader)
-        for (X, att_msk, Y) in btch_pbar:
-            X = X.to(device)
-            X = X.view(X.shape[0], X.shape[2])
-            att_msk = att_msk.to(device)
-            Y = Y.to(device)
-            results = model(input_ids=X, attention_mask=att_msk)
+        btch_pbar = tqdm(train_data_loader)
+        for data in btch_pbar:
+
+            if tokenize:
+                X, att_msk, Y = data
+                X = X.to(device)
+                att_msk = att_msk.to(device)
+                Y = Y.to(device)
+                input_data = [X, att_msk]
+            else:
+                X, Y = data
+                input_data = [X]
+
+            results = model(*input_data)
             loss = loss_function(results, Y)
 
             optimizer.zero_grad()
@@ -87,10 +133,19 @@ def run_train(
         btch_val_losses = np.array([])
         model.eval()
         with torch.no_grad():
-            for (X, Y) in val_data_loader:
-                X = X.to(device)
-                Y = Y.to(device)
-                results = model(X)
+            for data in val_data_loader:
+
+                if tokenize:
+                    X, att_msk, Y = data
+                    X = X.to(device)
+                    att_msk = att_msk.to(device)
+                    Y = Y.to(device)
+                    input_data = [X, att_msk]
+                else:
+                    X, Y = data
+                    input_data = [X]
+
+                results = model(*input_data)
                 loss = loss_function(results, Y)
                 btch_val_losses = np.append(btch_val_losses, loss.item())
 
@@ -438,3 +493,130 @@ Status:
 
     # - Save the final metadata and the results
     test_metadata.to_csv(save_dir / 'test_metadata.csv', index=False)
+
+
+def run_cv(model, model_params: dict, cv_root_dir: pathlib.Path, n_folds: int, features: list, labels: list, output_dir: pathlib.Path or None, nn_params: dict):
+    train_data_reductions = np.array([])
+    test_data_reductions = np.array([])
+    device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+
+    results = pd.DataFrame(columns=['true', 'predicted', 'error (%)'], dtype=np.float32)
+    for fold_dir in os.listdir(cv_root_dir):
+        if fold_dir[0] != '.':
+
+            feat_lbls_names = [*features, *labels]
+
+            # - Train data
+            train_df = pd.read_csv(cv_root_dir / fold_dir / 'train_data.csv')
+            train_df = train_df.loc[:, feat_lbls_names]
+            train_data_len_orig = len(train_df)
+
+            # -- Remove the test data rows where the label is 0
+            train_df = train_df.loc[train_df.loc[:, *labels] > 0]
+            train_data_len_reduced = len(train_df)
+            train_rdct_pct = calc_data_reduction(original_size=train_data_len_orig, reduced_size=train_data_len_reduced)
+            train_data_reductions = np.append(train_data_reductions, train_rdct_pct)
+
+            train_df, _, _ = normalize_columns(data_df=train_df, columns=[*features])
+
+            # - Test data
+            test_df = pd.read_csv(cv_root_dir / fold_dir / 'test_data.csv')
+            test_df = test_df.loc[:, feat_lbls_names]
+            test_data_len_orig = len(test_df)
+
+            # -- Remove the test data rows where the label is 0
+            test_df = test_df.loc[test_df.loc[:, *labels] > 0]
+            test_data_len_reduced = len(test_df)
+            test_rdct_pct = calc_data_reduction(original_size=test_data_len_orig, reduced_size=test_data_len_reduced)
+            test_data_reductions = np.append(test_data_reductions, test_rdct_pct)
+
+            test_df, _, _ = normalize_columns(data_df=test_df, columns=[*features])
+
+            train_data, val_data, test_data, test_ds = get_data(
+                train_df=train_df,
+                test_df=test_df,
+                features=features,
+                labels=labels,
+                batch_size=nn_params.get('batch_size'),
+                val_prop=nn_params.get('val_prop')
+            )
+
+            if isinstance(val_data, torch.utils.data.DataLoader):
+                # - For NN-based models
+
+                # - Build the model
+                mdl = model(**model_params)
+                # mdl = model(model_name='bert-base-uncased')
+
+                train_model(
+                    model=mdl,
+                    epochs=nn_params.get('epochs'),
+                    train_data_loader=train_data,
+                    validation_data_loader=val_data,
+                    loss_function=nn_params.get('loss_function'),
+                    optimizer=nn_params.get('optimizer'),
+                    learning_rate=nn_params.get('learning_rate'),
+                    save_dir=output_dir,
+                    tokenize=True if model_params.get('name') in ['BERT'] else False
+                )
+                y_test, y_pred = predict(model=mdl, data_loader=test_data, device=device)
+            else:
+                # - For ML-based models
+                X_train, y_train = train_data[0], train_data[1]
+                model.fit(
+                    X_train,
+                    y_train
+                )
+
+                X_test, y_test = test_data[0], test_data[1]
+
+                # - Predict the y_test labels based on X_test features
+                y_test, y_pred = model.predict(X_test)
+
+            errors = calc_errors(true=y_test, predicted=y_pred)
+            results = pd.concat([
+                results,
+                pd.DataFrame(
+                    {
+                        'true': y_test.flatten(),
+                        'predicted': y_pred.flatten(),
+                        'error (%)': errors.flatten()
+                    }
+                )
+            ], ignore_index=True)
+
+    if isinstance(output_dir, pathlib.Path):
+        results.to_csv(output_dir / 'final_results.csv')
+    mean_error = results.loc[:, "error (%)"].mean()
+    std_error = results.loc[:, "error (%)"].std()
+    print(f'''
+Mean Stats on {n_folds} CV for {labels}:
+    Mean Errors (%)
+    ---------------
+    {mean_error:.2f}+/-{std_error:.3f}
+
+    Mean reduced data (%)
+        - Train: {train_data_reductions.mean():.2f}+/-{train_data_reductions.std():.3f}
+        - Test: {test_data_reductions.mean():.2f}+/-{test_data_reductions.std():.3f}
+    ''')
+    return results
+
+
+def predict(model: torch.nn.Module, data_loader: torch.utils.data.DataLoader, device: torch.device = torch.device('cpu')):
+    y_true = np.array([])
+    y_pred = np.array([])
+    model.eval()
+    with torch.no_grad():
+        for (X, y) in tqdm(data_loader):
+            # - Move the data to device
+            X = X.to(device)
+            y = y.to(device)
+
+            # - Calculate predictions
+            preds = model(X)
+
+            # - Append to the output arrays
+            y_true = np.append(y_true, y.cpu().numpy())
+            y_pred = np.append(y_pred, preds.cpu().numpy())
+
+    return y_true, y_pred

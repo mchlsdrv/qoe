@@ -2,18 +2,18 @@ import os
 import datetime
 import pathlib
 from configs.params import VAL_PROP
-from qoe.whatsapp.models import TransformerForRegression
+from models import QoENet1D
 import torch
-
 from utils.train_utils import run_cv
+
 
 DATA_TYPE = 'packet_size'
 # DATA_TYPE = 'piat'
 
 TS = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
-CV_ROOT_DIR = pathlib.Path('C:\\Users\\msidorov\\Desktop\\projects\\qoe\\whatsapp\\data\\packet_size_cv_10_folds_float')
-OUTPUT_DIR = pathlib.Path(f'C:\\Users\\msidorov\\Desktop\\projects\\qoe\\whatsapp\\output\\cv_{TS}')
+CV_ROOT_DIR = pathlib.Path('/home/mchlsdrv/Desktop/projects/phd/qoe/whatsapp/data/packet_size_cv_10_folds_float')
+OUTPUT_DIR = pathlib.Path(f'/home/mchlsdrv/Desktop/projects/phd/qoe/whatsapp/output/cv_{TS}')
 os.makedirs(OUTPUT_DIR)
 
 PAKET_SIZE_FEATURES = [
@@ -44,18 +44,16 @@ PIAT_FEATURES = [
 LABELS = ['fps']
 # LABELS = ['brisque', 'piqe', 'fps']
 EPOCHS = 500
-BATCH_SIZE = 32
+BATCH_SIZE = 254
 N_LAYERS = 32
 N_UNITS = 512
 LOSS_FUNCTIONS = torch.nn.MSELoss
 OPTIMIZER = torch.optim.Adam
 LEARNING_RATE = 1e-3
-MODEL = TransformerForRegression
-
 
 if __name__ == '__main__':
     run_cv(
-        model=MODEL,
+        model=QoENet1D,
         n_folds=10,
         features=PAKET_SIZE_FEATURES if DATA_TYPE == 'packet_size' else PIAT_FEATURES,
         labels=LABELS,
