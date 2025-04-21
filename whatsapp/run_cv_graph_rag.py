@@ -32,7 +32,7 @@ LEARNING_RATE = 1e-3
 MODEL = GCNRegressor
 
 
-if __name__ == '__main__':
+def main():
     run_cv(
         model=MODEL,
         model_params={
@@ -52,3 +52,7 @@ if __name__ == '__main__':
             'optimizer': torch.optim.Adam
         }
     )
+
+
+if __name__ == '__main__':
+    main()
