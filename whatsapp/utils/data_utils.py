@@ -41,12 +41,12 @@ class QoEDataset(torch.utils.data.Dataset):
         return len(self.data_df)
 
     def __getitem__(self, index):
-        X, y = self.feature_df.iloc[index].values, self.label_df.iloc[index].values
+        X, Y = self.feature_df.iloc[index].values, self.label_df.iloc[index].values
         if self.tokenize:
             toks = self.tocknzr(str(X), padding='max_length', truncation=True)
             X, att_msk = toks.get('input_ids'), toks.get('attention_mask')
-            return torch.as_tensor(X, dtype=torch.int64), torch.as_tensor(att_msk, dtype=torch.int64), torch.as_tensor(y, dtype=torch.float32)
-        return torch.as_tensor(X, dtype=torch.float32), torch.as_tensor(y, dtype=torch.float32)
+            return torch.as_tensor(X, dtype=torch.int64), torch.as_tensor(att_msk, dtype=torch.int64), torch.as_tensor(Y, dtype=torch.float32)
+        return torch.as_tensor(X, dtype=torch.float32), torch.as_tensor(Y, dtype=torch.float32)
 
     def prepare_data(self):
         # 1) Drop unused columns
