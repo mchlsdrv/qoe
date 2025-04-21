@@ -2,9 +2,9 @@ import os
 import datetime
 import pathlib
 from configs.params import VAL_PROP, PAKET_SIZE_FEATURES, PIAT_FEATURES
-from models import QoENet1D
-from utils.train_utils import run_cv
+from models import QoENet1D, GCNRegressor
 import torch
+from utils.train_utils import run_cv
 
 
 DATA_TYPE = 'packet_size'
@@ -12,10 +12,10 @@ DATA_TYPE = 'packet_size'
 
 TS = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
-CV_ROOT_DIR = pathlib.Path('/home/mchlsdrv/Desktop/projects/phd/qoe/whatsapp/data/packet_size_cv_10_folds_float')
 # CV_ROOT_DIR = pathlib.Path('C:\\Users\\msidorov\\Desktop\\projects\\qoe\\whatsapp\\data\\packet_size_cv_10_folds_float')
-SAVE_DIR = pathlib.Path(f'/home/mchlsdrv/Desktop/projects/phd/qoe/whatsapp/output/cv_{TS}')
-# SAVE_DIR = pathlib.Path(f'C:\\Users\\msidorov\\Desktop\\projects\\qoe\\whatsapp\\output')
+CV_ROOT_DIR = pathlib.Path('/home/projects/bagon/msidorov/projects/qoe/whatsapp/data/packet_size_cv_10_folds_float')
+# SAVE_DIR = pathlib.Path(f'C:\\Users\\msidorov\\Desktop\\projects\\qoe\\whatsapp\\output\\cv_{TS}')
+SAVE_DIR = pathlib.Path(f'/home/projects/bagon/msidorov/projects/qoe/whatsapp/output/cv_{TS}')
 os.makedirs(SAVE_DIR, exist_ok=True)
 
 # LABELS = ['brisque']
@@ -24,25 +24,19 @@ LABELS = ['fps']
 # LABELS = ['brisque', 'piqe', 'fps']
 EPOCHS = 500
 BATCH_SIZE = 254
-INPUT_SIZE = 9
-OUTPUT_SIZE = 1
 N_LAYERS = 32
 N_UNITS = 512
 LOSS_FUNCTIONS = torch.nn.MSELoss
 OPTIMIZER = torch.optim.Adam
 LEARNING_RATE = 1e-3
-MODEL = QoENet1D
+MODEL = GCNRegressor
 
 
 if __name__ == '__main__':
     run_cv(
         model=MODEL,
         model_params={
-            'model_name': 'QoENet1d',
-            'input_size': INPUT_SIZE,
-            'output_size': OUTPUT_SIZE,
-            'n_units': N_UNITS,
-            'n_layers': N_LAYERS
+            'model_name': 'bert-base-uncased',
         },
         n_folds=10,
         features=PAKET_SIZE_FEATURES if DATA_TYPE == 'packet_size' else PIAT_FEATURES,

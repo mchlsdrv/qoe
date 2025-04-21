@@ -4,6 +4,8 @@ import numpy as np
 import torch
 import matplotlib
 import matplotlib.pyplot as plt
+# from torch_geometric.nn import GCNConv
+from transformers import AutoConfig, AutoModel
 
 matplotlib.use('Agg')
 plt.style.use('ggplot')
@@ -139,8 +141,9 @@ class AutoEncoder(torch.nn.Module):
         def code_length(self, value):
             self._code_length = value
 
-    def __init__(self, n_features, code_length, layer_activation, reverse: bool = False, save_dir: str or pathlib.Path = pathlib.Path('./outputs')):
+    def __init__(self, model_name: str, n_features, code_length, layer_activation, reverse: bool = False, save_dir: str or pathlib.Path = pathlib.Path('./output')):
         super().__init__()
+        self.model_name = model_name
         self.n_features = n_features
         self.code_length = code_length
         self.layer_activation = layer_activation
@@ -196,10 +199,11 @@ class AutoEncoder(torch.nn.Module):
 
 
 class QoENet1D(torch.nn.Module):
-    def __init__(self, n_features, n_labels, n_layers, n_units):
+    def __init__(self, model_name: str, input_size, output_size, n_units, n_layers):
         super().__init__()
-        self.n_features = n_features
-        self.n_labels = n_labels
+        self.model_name = model_name
+        self.input_size = input_size
+        self.output_size = output_size
         self.n_layers = n_layers
         self.n_units = n_units
         self.model = None
@@ -217,13 +221,12 @@ class QoENet1D(torch.nn.Module):
 
     def _build(self):
         # - Add the input layer
-        self._add_layer(n_in=self.n_features, n_out=self.n_units, activation=torch.nn.SiLU)
+        self._add_layer(n_in=self.input_size, n_out=self.n_units, activation=torch.nn.SiLU)
 
         for lyr in range(self.n_layers):
             self._add_layer(n_in=self.n_units, n_out=self.n_units, activation=torch.nn.SiLU)
 
-        # self._add_layer(n_in=self.n_units, n_out=self.n_labels, activation=torch.nn.Tanh)
-        self._add_layer(n_in=self.n_units, n_out=self.n_labels, activation=torch.nn.ReLU)
+        self._add_layer(n_in=self.n_units, n_out=self.output_size, activation=torch.nn.ReLU)
 
     def forward(self, x, p_drop: float = 0.0):
         tmp_in = x
@@ -240,3 +243,47 @@ class QoENet1D(torch.nn.Module):
         x = torch.nn.functional.dropout(x, p=p_drop, training=self.training)
 
         return x
+
+
+class GCNClassifier(torch.nn.Module):
+    def __init__(self, model_name: str, in_channels, hidden_channels, out_channels):
+        super().__init__()
+        self.model_name = model_name
+        self.conv1 = GCNConv(in_channels, hidden_channels)
+        self.conv2 = GCNConv(hidden_channels, out_channels)
+
+    def forward(self, data):
+        x, edge_index = data.x, data.edge_index
+        x = self.conv1(x, edge_index).relu()
+        x = self.conv2(x, edge_index)
+
+        return x
+
+
+class GCNRegressor(torch.nn.Module):
+    def __init__(self, model_name: str, in_channels, hidden_channels):
+        super().__init__()
+        self.model_name = model_name
+        self.conv1 = GCNConv(in_channels, hidden_channels)
+        self.conv2 = GCNConv(hidden_channels, 1)
+
+    def forward(self, data):
+        x, edge_index = data.x, data.edge_index
+        x = self.conv1(x, edge_index).relu()
+        x = self.conv2(x, edge_index)
+        return x.squeeze()
+
+
+class TransformerForRegression(torch.nn.Module):
+    def __init__(self, model_name: str):
+        super().__init__()
+
+        self.model_name = model_name
+        self.config = AutoConfig.from_pretrained(self.model_name)
+        self.transformer = AutoModel.from_pretrained(self.model_name, config=self.config)
+        self.regressor = torch.nn.Linear(self.config.hidden_size, 1)
+
+    def forward(self, input_ids, attention_mask):
+        outputs = self.transformer(input_ids=input_ids, attention_mask=attention_mask)
+        pooled_output = outputs.last_hidden_state[:, 0]
+        return self.regressor(pooled_output)
