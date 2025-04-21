@@ -49,14 +49,12 @@ if __name__ == '__main__':
         labels=LABELS,
         cv_root_dir=CV_ROOT_DIR,
         save_dir=SAVE_DIR,
-        nn_params=dict(
-            batch_size=BATCH_SIZE,
-            val_prop=VAL_PROP,
-            n_layers=N_LAYERS,
-            n_units=N_LAYERS,
-            epochs=EPOCHS,
-            loss_function=torch.nn.MSELoss,
-            learning_rate=LEARNING_RATE,
-            optimizer=torch.optim.Adam
-        )
+        nn_params={
+            'batch_size': BATCH_SIZE,
+            'val_prop': VAL_PROP,
+            'epochs': EPOCHS,
+            'loss_function': torch.nn.MSELoss,
+            'learning_rate': LEARNING_RATE,
+            'optimizer': torch.optim.Adam
+        }
     )
