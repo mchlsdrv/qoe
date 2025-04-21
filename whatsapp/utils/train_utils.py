@@ -32,7 +32,8 @@ def run_train(
         train_data_loader: torch.utils.data.DataLoader, val_data_loader: torch.utils.data.DataLoader,
         loss_function: torch.nn, optimizer: torch.optim,
         lr_reduce_frequency: int, lr_reduce_factor: float = 1.0,
-        dropout_epoch_start: int = 20, dropout_epoch_delta: int = 20, p_dropout_init: float = 0.1, p_dropout_max: float = 0.5,
+        dropout_epoch_start: int = 20, dropout_epoch_delta: int = 20, p_dropout_init: float = 0.1,
+        p_dropout_max: float = 0.5,
         checkpoint_file: pathlib.Path = None,
         checkpoint_save_frequency: int = 10,
         device: torch.device = torch.device('cpu'),
@@ -43,7 +44,8 @@ def run_train(
         load_checkpoint(model=model, checkpoint_file=checkpoint_file)
 
     # - Make sure the save_dir exists and of type pathlib.Path
-    assert isinstance(save_dir, str) or isinstance(save_dir, pathlib.Path), f'save_dir must be of type str or pathlib.Path, but is of type {type(save_dir)}!'
+    assert isinstance(save_dir, str) or isinstance(save_dir,
+                                                   pathlib.Path), f'save_dir must be of type str or pathlib.Path, but is of type {type(save_dir)}!'
     os.makedirs(save_dir, exist_ok=True)
     save_dir = pathlib.Path(save_dir)
 
@@ -64,7 +66,7 @@ def run_train(
         btch_pbar = tqdm.tqdm(train_data_loader)
         for (X, att_msk, Y) in btch_pbar:
             X = X.to(device)
-            X = X.view(X.shape[0], X.shape[2])
+            # X = X.view(X.shape[0], X.shape[2])
             att_msk = att_msk.to(device)
             Y = Y.to(device)
             results = model(input_ids=X, attention_mask=att_msk)
@@ -87,10 +89,11 @@ def run_train(
         btch_val_losses = np.array([])
         model.eval()
         with torch.no_grad():
-            for (X, Y) in val_data_loader:
+            for (X, att_msk, Y) in val_data_loader:
                 X = X.to(device)
+                att_msk = att_msk.to(device)
                 Y = Y.to(device)
-                results = model(X)
+                results = model(input_ids=X, attention_mask=att_msk)
                 loss = loss_function(results, Y)
                 btch_val_losses = np.append(btch_val_losses, loss.item())
 
@@ -120,7 +123,8 @@ def run_train(
     return train_losses, val_losses
 
 
-def run_test(model: torch.nn.Module, data_loader: torch.utils.data.DataLoader, device: torch.device = torch.device('cpu')):
+def run_test(model: torch.nn.Module, data_loader: torch.utils.data.DataLoader,
+             device: torch.device = torch.device('cpu')):
     test_results = pd.DataFrame()
     model.eval()
     with torch.no_grad():
@@ -198,7 +202,8 @@ def search_parameters(
         # - Get the path to the current cv_5_folds folder
         data_folder = test_data_root / test_dir_name
 
-        print(f'\t - Data folders: {data_folder} - {fldr_idx + 1}/{cv_folds} ({100 * (fldr_idx + 1) / cv_folds:.2f}% done)')
+        print(
+            f'\t - Data folders: {data_folder} - {fldr_idx + 1}/{cv_folds} ({100 * (fldr_idx + 1) / cv_folds:.2f}% done)')
 
         # - Get the train / train_test cv_5_folds
         train_data_df = pd.read_csv(data_folder / 'train_data.csv')
@@ -244,9 +249,12 @@ def search_parameters(
 
                                     # - Split into train / val
 
-                                    train_data_df.loc[:, labels] /= (train_data_df.loc[:, labels].max() - train_data_df.loc[:, labels].min())
-                                    test_data_df.loc[:, labels] /= (test_data_df.loc[:, labels].max() - test_data_df.loc[:, labels].min())
-                                    train_df, val_df = get_train_val_split(train_data_df, validation_proportion=VAL_PROP)
+                                    train_data_df.loc[:, labels] /= (
+                                            train_data_df.loc[:, labels].max() - train_data_df.loc[:, labels].min())
+                                    test_data_df.loc[:, labels] /= (
+                                            test_data_df.loc[:, labels].max() - test_data_df.loc[:, labels].min())
+                                    train_df, val_df = get_train_val_split(train_data_df,
+                                                                           validation_proportion=VAL_PROP)
 
                                     # - Dataset
                                     train_ds = QoEDataset(
@@ -347,7 +355,8 @@ def search_parameters(
                                         device=DEVICE
                                     )
                                     if test_ds.labels_std != 0:
-                                        test_res = unstandardize_results(results=test_res, data_set=test_ds, n_columns=len(test_res.columns) // 2)
+                                        test_res = unstandardize_results(results=test_res, data_set=test_ds,
+                                                                         n_columns=len(test_res.columns) // 2)
 
                                     # - Save the train_test metadata
                                     test_res.to_csv(train_save_dir / f'test_results.csv', index=False)
@@ -401,10 +410,12 @@ def search_parameters(
                                     )
 
                                     # -- Add the errors to the configuration results
-                                    configuration_results = pd.concat([configuration_results, pd.DataFrame(test_errs.abs().mean()).T], axis=1)
+                                    configuration_results = pd.concat(
+                                        [configuration_results, pd.DataFrame(test_errs.abs().mean()).T], axis=1)
 
                                     # - Add the results for the current configuration to the final parameter_selection results
-                                    ablation_results = pd.concat([ablation_results, configuration_results], axis=0).reset_index(drop=True)
+                                    ablation_results = pd.concat([ablation_results, configuration_results],
+                                                                 axis=0).reset_index(drop=True)
 
                                     # - Save the final metadata and the results
                                     ablation_results.to_csv(save_dir / 'ablation_final_results_tmp.csv', index=False)

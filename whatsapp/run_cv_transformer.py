@@ -47,7 +47,8 @@ class QoEDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, index):
         X, y = self.feature_df.iloc[index].values, self.label_df.iloc[index].values
-        tocks = self.tocknzr([str(X)], padding='max_length', truncation=True)
+        tocks = self.tocknzr(str(X), padding='max_length', truncation=True)
+        # tocks = self.tocknzr([str(X)], padding='max_length', truncation=True)
         X, att_msk = tocks.get('input_ids'), tocks.get('attention_mask')
         return torch.as_tensor(X, dtype=torch.int64), torch.as_tensor(att_msk, dtype=torch.int64), torch.as_tensor(y, dtype=torch.float32)
 
@@ -364,8 +365,8 @@ DATA_TYPE = 'packet_size'
 
 TS = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
-CV_ROOT_DIR = pathlib.Path('C:\\Users\\msidorov\\Desktop\\projects\\qoe\\whatsapp\\data\\packet_size_cv_10_folds_float')
-OUTPUT_DIR = pathlib.Path(f'C:\\Users\\msidorov\\Desktop\\projects\\qoe\\whatsapp\\output\\cv_{TS}')
+CV_ROOT_DIR = pathlib.Path('/home/projects/bagon/msidorov/projects/qoe/whatsapp/data/packet_size_cv_10_folds_float')
+OUTPUT_DIR = pathlib.Path(f'/home/projects/bagon/msidorov/projects/qoe/whatsapp/cv_{TS}')
 os.makedirs(OUTPUT_DIR)
 
 PAKET_SIZE_FEATURES = [
@@ -396,7 +397,7 @@ PIAT_FEATURES = [
 LABELS = ['fps']
 # LABELS = ['brisque', 'piqe', 'fps']
 EPOCHS = 500
-BATCH_SIZE = 254
+BATCH_SIZE = 64
 N_LAYERS = 32
 N_UNITS = 512
 LOSS_FUNCTIONS = torch.nn.MSELoss
