@@ -4,7 +4,7 @@ import numpy as np
 import torch
 import matplotlib
 import matplotlib.pyplot as plt
-from torch_geometric.nn import GCNConv
+# from torch_geometric.nn import GCNConv
 from transformers import AutoConfig, AutoModel
 
 matplotlib.use('Agg')

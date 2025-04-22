@@ -41,12 +41,12 @@ class QoEDataset(torch.utils.data.Dataset):
         return len(self.data_df)
 
     def __getitem__(self, index):
-        X, y = self.feature_df.iloc[index].values, self.label_df.iloc[index].values
+        X, Y = self.feature_df.iloc[index].values, self.label_df.iloc[index].values
         if self.tokenize:
-            tocks = self.tocknzr(str(X), padding='max_length', truncation=True)
-            X, att_msk = tocks.get('input_ids'), tocks.get('attention_mask')
-            return torch.as_tensor(X, dtype=torch.int64), torch.as_tensor(att_msk, dtype=torch.int64), torch.as_tensor(y, dtype=torch.float32)
-        return torch.as_tensor(X, dtype=torch.float32), torch.as_tensor(y, dtype=torch.float32)
+            toks = self.tocknzr(str(X), padding='max_length', truncation=True)
+            X, att_msk = toks.get('input_ids'), toks.get('attention_mask')
+            return torch.as_tensor(X, dtype=torch.int64), torch.as_tensor(att_msk, dtype=torch.int64), torch.as_tensor(Y, dtype=torch.float32)
+        return torch.as_tensor(X, dtype=torch.float32), torch.as_tensor(Y, dtype=torch.float32)
 
     def prepare_data(self):
         # 1) Drop unused columns
@@ -203,3 +203,22 @@ def get_data(train_df: pd.DataFrame, test_df: pd.DataFrame, features: list, labe
         test_data = (X_test, y_test)
 
     return train_data, val_data, test_data, test_ds
+
+
+def get_input_data(data, tokenize: bool, device: torch.cuda.device):
+    if tokenize:
+        X, att_msk, Y = data
+        X = X.to(device)
+        Y = Y.to(device)
+        att_msk = att_msk.to(device)
+
+        input_data = [X, att_msk]
+    else:
+        X, Y = data
+        X = X.to(device)
+        Y = Y.to(device)
+
+        input_data = [X]
+
+    return input_data, Y
+
