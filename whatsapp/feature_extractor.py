@@ -7,7 +7,7 @@ from tqdm import tqdm
 DEBUG = False
 EPSILON = 1e-9
 
-DATA_ROOT = pathlib.Path('../../../../Downloads/data')
+DATA_ROOT = pathlib.Path('./data')
 OUTPUT_DIR = pathlib.Path('./output')
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -110,49 +110,52 @@ class FeatureExtractor:
             features_df = features_df.astype(np.int16)
 
         # - Calculate the summary statistics of the size data
-        max_feat = features_df.max(axis=1)
-        min_feat = features_df.apply(lambda x: np.min(x.values[np.argwhere(x.values > 0)]), axis=1)
-        mean_feat = features_df.apply(lambda x: np.mean(x.values[np.argwhere(x.values > 0)]), axis=1)
-        std_feat = features_df.apply(lambda x: np.std(x.values[np.argwhere(x.values > 0)]), axis=1)
-        q1_feat = features_df.apply(lambda x: np.quantile(x.values[x.values > 0], 0.75), axis=1)
-        q2_feat = features_df.apply(lambda x: np.quantile(x.values[x.values > 0], 0.5), axis=1)
-        q3_feat = features_df.apply(lambda x: np.quantile(x.values[x.values > 0], 0.25), axis=1)
+        try:
+            max_feat = features_df.max(axis=1)
+            min_feat = features_df.apply(lambda x: np.nan if len(x.values[np.argwhere(x.values > 0)]) == 0 else np.min(x.values[np.argwhere(x.values > 0)]), axis=1)
+            mean_feat = features_df.apply(lambda x: np.nan if len(x.values[np.argwhere(x.values > 0)]) == 0 else np.mean(x.values[np.argwhere(x.values > 0)]), axis=1)
+            std_feat = features_df.apply(lambda x: np.nan if len(x.values[np.argwhere(x.values > 0)]) == 0 else np.std(x.values[np.argwhere(x.values > 0)]), axis=1)
+            q1_feat = features_df.apply(lambda x: np.nan if len(x.values[np.argwhere(x.values > 0)]) == 0 else np.quantile(x.values[x.values > 0], 0.75), axis=1)
+            q2_feat = features_df.apply(lambda x: np.nan if len(x.values[np.argwhere(x.values > 0)]) == 0 else np.quantile(x.values[x.values > 0], 0.5), axis=1)
+            q3_feat = features_df.apply(lambda x: np.nan if len(x.values[np.argwhere(x.values > 0)]) == 0 else np.quantile(x.values[x.values > 0], 0.25), axis=1)
 
-        features_df[f'q3_{feature}'] = q3_feat
-        features_df[f'q2_{feature}'] = q2_feat
-        features_df[f'q1_{feature}'] = q1_feat
+            features_df[f'q3_{feature}'] = q3_feat
+            features_df[f'q2_{feature}'] = q2_feat
+            features_df[f'q1_{feature}'] = q1_feat
 
-        features_df[f'std_{feature}'] = std_feat
-        features_df[f'mean_{feature}'] = mean_feat
-        features_df[f'max_{feature}'] = max_feat
-        features_df[f'min_{feature}'] = min_feat
+            features_df[f'std_{feature}'] = std_feat
+            features_df[f'mean_{feature}'] = mean_feat
+            features_df[f'max_{feature}'] = max_feat
+            features_df[f'min_{feature}'] = min_feat
 
-        features_df[f'number_of_unique_{feature}s_in_time_window'] = n_unq_pckts_in_tw
-        features_df[f'number_of_{feature}s_in_time_window'] = n_pckts_in_tw
+            features_df[f'number_of_unique_{feature}s_in_time_window'] = n_unq_pckts_in_tw
+            features_df[f'number_of_{feature}s_in_time_window'] = n_pckts_in_tw
 
-        features_df[f'window_end_time_stamp'] = np.unique(window_end_time_stamps)
+            features_df[f'window_end_time_stamp'] = np.unique(window_end_time_stamps)
 
-        # - Change the dtypes of the columns
-        features_df = features_df.astype({
-            f'window_end_time_stamp': np.int64,
-            f'number_of_{feature}s_in_time_window': np.int16,
-            f'number_of_unique_{feature}s_in_time_window': np.int16,
-            f'min_{feature}': np.int16,
-            f'max_{feature}': np.int16,
-            f'mean_{feature}': np.float32,
-            f'std_{feature}': np.float32,
-            f'q1_{feature}': np.float32,
-            f'q2_{feature}': np.float32,
-            f'q3_{feature}': np.float32,
-        })
+            # - Change the dtypes of the columns
+            features_df = features_df.astype({
+                f'window_end_time_stamp': np.int64,
+                f'number_of_{feature}s_in_time_window': np.float32,
+                f'number_of_unique_{feature}s_in_time_window': np.float32,
+                f'min_{feature}': np.float32,
+                f'max_{feature}': np.float32,
+                f'mean_{feature}': np.float32,
+                f'std_{feature}': np.float32,
+                f'q1_{feature}': np.float32,
+                f'q2_{feature}': np.float32,
+                f'q3_{feature}': np.float32,
+            })
 
-        # - Change the order of the columns to have the summary statistics first
-        features_df = features_df[
-            [
-                *features_df.columns.values[-10:][::-1],
-                *features_df.columns.values[:-10]
+            # - Change the order of the columns to have the summary statistics first
+            features_df = features_df[
+                [
+                    *features_df.columns.values[-10:][::-1],
+                    *features_df.columns.values[:-10]
+                ]
             ]
-        ]
+        except ValueError as err:
+            print(f'Value Error: {err}')
 
         return features_df
 
