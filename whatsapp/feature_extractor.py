@@ -67,7 +67,7 @@ class FeatureExtractor:
         piat_feat_df = self.extract_piat_features(pcap_df=pcap_df)
 
         # - Extract the features related to the packet size
-        pckt_size_feat_df = self.extract_packt_size_features(pcap_df=pcap_df)
+        pckt_size_feat_df = self.extract_packet_size_features(pcap_df=pcap_df)
 
         return piat_feat_df, pckt_size_feat_df
 
@@ -159,7 +159,7 @@ class FeatureExtractor:
 
         return features_df
 
-    def extract_packt_size_features(self, pcap_df: pd.DataFrame):
+    def extract_packet_size_features(self, pcap_df: pd.DataFrame):
         """
         Method that receives a pcap data in a pd.DataFrame format, and extracts micro and macro (statistical) features related to the size of the packets:
         Inputs:
