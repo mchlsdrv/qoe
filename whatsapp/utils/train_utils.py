@@ -2,7 +2,6 @@ import os
 import pathlib
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 import torch
 import torch.utils.data
 from tqdm import tqdm
@@ -128,9 +127,6 @@ def get_train_val_losses(
 
 def train_model(model, epochs, train_data_loader, validation_data_loader, loss_function, optimizer, learning_rate, save_dir, tokenize: bool =False):
     # - Train
-    # - Create the train directory
-    train_save_dir = save_dir / f'train'
-    os.makedirs(train_save_dir, exist_ok=True)
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
     model.to(device)
 
@@ -152,16 +148,8 @@ def train_model(model, epochs, train_data_loader, validation_data_loader, loss_f
     )
 
     # - Save the train / val loss metadata
-    np.save(train_save_dir / 'train_losses.npy', train_losses)
-    np.save(train_save_dir / 'val_losses.npy', val_losses)
-
-    # - Plot the train / val losses
-    plt.plot(train_losses, label='train')
-    plt.plot(val_losses, label='val')
-    plt.suptitle('Train / Validation Loss Plot')
-    plt.legend()
-    plt.savefig(train_save_dir / 'train_val_loss.png')
-    plt.close()
+    np.save(save_dir / 'train_losses.npy', train_losses)
+    np.save(save_dir / 'val_losses.npy', val_losses)
 
 
 def test_model(model: torch.nn.Module, data_loader: torch.utils.data.DataLoader, tokenize: bool = False, device: torch.device = torch.device('cpu')):
@@ -193,6 +181,13 @@ def run_cv(model, model_params: dict, cv_root_dir: pathlib.Path or str, n_folds:
     for fld_idx, fold_dir in enumerate(os.listdir(cv_root_dir)):
         if fold_dir[0] != '.':
             cv_save_dir = save_dir / f'cv{fld_idx + 1}'
+
+            cv_train_dir = cv_save_dir / 'train'
+            os.makedirs(cv_train_dir)
+
+            cv_test_dir = cv_save_dir / 'test'
+            os.makedirs(cv_test_dir)
+
             feat_lbls_names = [*features, *labels]
 
             # - Train data
@@ -245,7 +240,7 @@ def run_cv(model, model_params: dict, cv_root_dir: pathlib.Path or str, n_folds:
                     loss_function=nn_params.get('loss_function'),
                     optimizer=nn_params.get('optimizer'),
                     learning_rate=nn_params.get('learning_rate'),
-                    save_dir=cv_save_dir,
+                    save_dir=cv_train_dir,
                     tokenize=tokenize
                 )
 
@@ -270,6 +265,7 @@ def run_cv(model, model_params: dict, cv_root_dir: pathlib.Path or str, n_folds:
                 y_true, y_pred = model.predict(X_test)
 
             errs = calc_errors(true=y_true, predicted=y_pred)
+
             print(f'''
             Mean Test Errors - {fld_idx + 1} CV Fold:
                 > Mean true values      : {y_true.mean():.2f}+/-{y_true.std():.3f}
@@ -287,8 +283,10 @@ def run_cv(model, model_params: dict, cv_root_dir: pathlib.Path or str, n_folds:
                 )
             ], ignore_index=True)
 
-    if isinstance(save_dir, pathlib.Path):
-        results.to_csv(save_dir / 'final_results.csv')
+            results.to_csv(cv_test_dir / f'{fld_idx}_fold_final_results.csv')
+
+    results.to_csv(cv_root_dir / f'{n_folds}_folds_cv_results.csv')
+
     mean_error = results.loc[:, "error (%)"].mean()
     std_error = results.loc[:, "error (%)"].std()
     print(f'''

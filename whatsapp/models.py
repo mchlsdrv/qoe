@@ -4,8 +4,9 @@ import numpy as np
 import torch
 import matplotlib
 import matplotlib.pyplot as plt
-# from torch_geometric.nn import GCNConv
+from torch_geometric.nn import GCNConv
 from transformers import AutoConfig, AutoModel
+from sklearn.neighbors import KNeighborsClassifier
 
 matplotlib.use('Agg')
 plt.style.use('ggplot')
@@ -260,8 +261,14 @@ class GCNClassifier(torch.nn.Module):
         return x
 
 
+class GRAGDataset(torch.utils.data.Dataset):
+    def __init__(self, knn_neighbors: int = 5):
+        super().__init__()
+        self.knn_classifier = KNeighborsClassifier(n_neighbors=knn_neighbors)
+
+
 class GCNRegressor(torch.nn.Module):
-    def __init__(self, model_name: str, in_channels, hidden_channels):
+    def __init__(self, model_name: str, in_channels: int, hidden_channels: int):
         super().__init__()
         self.model_name = model_name
         self.conv1 = GCNConv(in_channels, hidden_channels)

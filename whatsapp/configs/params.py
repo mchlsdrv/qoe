@@ -56,7 +56,7 @@ DROPOUT_P = 0.05
 DROPOUT_P_MAX = 0.5
 RBM_K_GIBBS_STEPS = 10
 
-PAKET_SIZE_FEATURES = [
+PACKET_SIZE_FEATURES = [
     'number_of_packet_sizes_in_time_window',
     'number_of_unique_packet_sizes_in_time_window',
     'min_packet_size',
