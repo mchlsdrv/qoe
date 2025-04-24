@@ -2,7 +2,11 @@ import os
 import pathlib
 import numpy as np
 import pandas as pd
+import scipy
 from tqdm import tqdm
+
+from configs.params import PACKET_SIZE_FEATURES, PIAT_FEATURES
+from utils.data_utils import calc_data_reduction
 
 
 def build_test_datasets(data: pd.DataFrame, n_folds: int,  root_save_dir: pathlib.Path):
@@ -55,20 +59,48 @@ def build_test_datasets(data: pd.DataFrame, n_folds: int,  root_save_dir: pathli
         test_data.to_csv(test_set_save_dir / f'test_data.csv', index=False)
 
 
-DATA_NAME = 'packet_size'
+def remove_outliers(dataset: pd.DataFrame, columns: list, std_th: int):
+    L = len(dataset)
+    dataset = dataset.loc[(np.abs(scipy.stats.zscore(dataset.loc[:, columns])) < std_th).all(axis=1)]
+    N = len(dataset)
+    data_reduct = calc_data_reduction(L, N)
+    print(f'''
+Outliers
+    Total before reduction: {L}
+    Total after reduction: {N}
+    > Present reduced: {data_reduct:.3f}%
+''')
+
+    return dataset
+
+
+def remove_zero_labels(dataset: pd.DataFrame, labels: list):
+    # - Clean the data points where labels are equal to 0, as it is not a realistic
+    for lbl in labels:
+        dataset = dataset.loc[dataset.loc[:, lbl] > 0]
+
+
+DATA_NAME = 'piat'
+# DATA_NAME = 'packet_size'
 LABELS = ['brisque', 'piqe', 'fps']
 N_FOLDS = 10
-DATA_ROOT_DIR = pathlib.Path(f'/home/mchlsdrv/Desktop/projects/phd/qoe/whatsapp/data')
+DATA_ROOT_DIR = pathlib.Path(f'/home/projects/bagon/msidorov/projects/qoe/whatsapp/data')
 DATA_SET_PATH = DATA_ROOT_DIR / f'{DATA_NAME}_features_labels.csv'
 SAVE_DIR = DATA_ROOT_DIR / f'{DATA_NAME}_cv_{N_FOLDS}_folds_float'
+OUTLIER_STD_TH = 3
 
 if __name__ == '__main__':
-    data_set = pd.read_csv(DATA_SET_PATH)
-    if 'Unnamed: 0' in data_set.columns:
-        DATA_SET = data_set.drop(columns=['Unnamed: 0'])
+    data_df = pd.read_csv(DATA_SET_PATH)
+    if 'Unnamed: 0' in data_df.columns:
+        DATA_SET = data_df.drop(columns=['Unnamed: 0'])
 
-    # - Clean the data points where labels are equal to 0, as it is not a realistic
-    for lbl in LABELS:
-        data_set = data_set.loc[data_set.loc[:, lbl] > 0]
+    data_df = remove_outliers(
+        dataset=data_df,
+        columns=PIAT_FEATURES if DATA_NAME == 'piat' else PACKET_SIZE_FEATURES,
+        std_th=OUTLIER_STD_TH
+    )
 
-    build_test_datasets(data=data_set, n_folds=N_FOLDS, root_save_dir=SAVE_DIR)
+    # - Leave only the rows where the labels are > 0
+    # data_df = data_df.loc[(data_df.loc[:, LABELS] > 0).prod(axis=1).astype(bool)].reset_index(drop=True)
+
+    build_test_datasets(data=data_df, n_folds=N_FOLDS, root_save_dir=SAVE_DIR)

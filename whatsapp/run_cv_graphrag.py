@@ -1,8 +1,8 @@
 import os
 import datetime
 import pathlib
-from configs.params import VAL_PROP, PAKET_SIZE_FEATURES, PIAT_FEATURES
-from models import QoENet1D, GCNRegressor
+from configs.params import VAL_PROP, PACKET_SIZE_FEATURES, PIAT_FEATURES
+from models import GCNRegressor
 import torch
 from utils.train_utils import run_cv
 
@@ -33,13 +33,16 @@ MODEL = GCNRegressor
 
 
 def main():
+    feats = PACKET_SIZE_FEATURES if DATA_TYPE == 'packet_size' else PIAT_FEATURES
     run_cv(
         model=MODEL,
         model_params={
-            'model_name': 'bert-base-uncased',
+            'model_name': 'graph-rag',
+            'in_channels': len(feats),
+            'hidden_channels': N_UNITS
         },
         n_folds=10,
-        features=PAKET_SIZE_FEATURES if DATA_TYPE == 'packet_size' else PIAT_FEATURES,
+        features=feats,
         labels=LABELS,
         cv_root_dir=CV_ROOT_DIR,
         save_dir=SAVE_DIR,

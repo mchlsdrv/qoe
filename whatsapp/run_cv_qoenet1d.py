@@ -1,7 +1,7 @@
 import os
 import datetime
 import pathlib
-from configs.params import VAL_PROP, PAKET_SIZE_FEATURES, PIAT_FEATURES
+from configs.params import VAL_PROP, PACKET_SIZE_FEATURES, PIAT_FEATURES
 from models import QoENet1D
 from utils.train_utils import run_cv
 import torch
@@ -12,17 +12,18 @@ DATA_TYPE = 'packet_size'
 
 TS = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
-CV_ROOT_DIR = pathlib.Path('/home/mchlsdrv/Desktop/projects/phd/qoe/whatsapp/data/packet_size_cv_10_folds_float')
+# CV_ROOT_DIR = pathlib.Path('/home/mchlsdrv/Desktop/projects/phd/qoe/whatsapp/data/packet_size_cv_10_folds_float')
 # CV_ROOT_DIR = pathlib.Path('C:\\Users\\msidorov\\Desktop\\projects\\qoe\\whatsapp\\data\\packet_size_cv_10_folds_float')
-SAVE_DIR = pathlib.Path(f'/home/mchlsdrv/Desktop/projects/phd/qoe/whatsapp/output/cv_{TS}')
-# SAVE_DIR = pathlib.Path(f'C:\\Users\\msidorov\\Desktop\\projects\\qoe\\whatsapp\\output')
+CV_ROOT_DIR = pathlib.Path('/home/projects/bagon/msidorov/projects/qoe/whatsapp/data/packet_size_cv_10_folds_float')
+# SAVE_DIR = pathlib.Path(f'/home/mchlsdrv/Desktop/projects/phd/qoe/whatsapp/output/cv_{TS}')
+SAVE_DIR = pathlib.Path(f'/home/projects/bagon/msidorov/projects/qoe/whatsapp/output/cv_{TS}')
 os.makedirs(SAVE_DIR, exist_ok=True)
 
 # LABELS = ['brisque']
 # LABELS = ['piqe']
 LABELS = ['fps']
 # LABELS = ['brisque', 'piqe', 'fps']
-EPOCHS = 500
+EPOCHS = 200
 BATCH_SIZE = 254
 INPUT_SIZE = 9
 OUTPUT_SIZE = 1
@@ -35,6 +36,7 @@ MODEL = QoENet1D
 
 
 def main():
+    feats = PACKET_SIZE_FEATURES if DATA_TYPE == 'packet_size' else PIAT_FEATURES
     run_cv(
         model=MODEL,
         model_params={
@@ -45,7 +47,7 @@ def main():
             'n_layers': N_LAYERS
         },
         n_folds=10,
-        features=PAKET_SIZE_FEATURES if DATA_TYPE == 'packet_size' else PIAT_FEATURES,
+        features=feats,
         labels=LABELS,
         cv_root_dir=CV_ROOT_DIR,
         save_dir=SAVE_DIR,
