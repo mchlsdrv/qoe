@@ -147,7 +147,8 @@ def get_data(train_df: pd.DataFrame, test_df: pd.DataFrame, features: list, labe
                 label_columns=labels,
                 normalize_features=True,
                 normalize_labels=False,
-                remove_outliers=True,
+                remove_outliers=False,
+                # remove_outliers=True,
                 tokenize=tokenize
             ),
             batch_size=batch_size,
@@ -166,7 +167,8 @@ def get_data(train_df: pd.DataFrame, test_df: pd.DataFrame, features: list, labe
                 label_columns=labels,
                 normalize_features=True,
                 normalize_labels=False,
-                remove_outliers=True,
+                remove_outliers=False,
+                # remove_outliers=True,
                 tokenize=tokenize
             ),
             batch_size=val_batch_size if val_batch_size > 0 else 1,
@@ -183,6 +185,7 @@ def get_data(train_df: pd.DataFrame, test_df: pd.DataFrame, features: list, labe
             label_columns=labels,
             normalize_features=True,
             normalize_labels=False,
+            remove_outliers=False,
             tokenize=tokenize
         )
         test_data = torch.utils.data.DataLoader(
