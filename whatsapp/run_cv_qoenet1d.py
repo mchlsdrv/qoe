@@ -13,10 +13,10 @@ DATA_TYPE = 'packet_size'
 TS = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
 # CV_ROOT_DIR = pathlib.Path('/home/mchlsdrv/Desktop/projects/phd/qoe/whatsapp/data/packet_size_cv_10_folds_float')
-# CV_ROOT_DIR = pathlib.Path('C:\\Users\\msidorov\\Desktop\\projects\\qoe\\whatsapp\\data\\packet_size_cv_10_folds_float')
-CV_ROOT_DIR = pathlib.Path('/home/projects/bagon/msidorov/projects/qoe/whatsapp/data/packet_size_cv_10_folds_float')
-# SAVE_DIR = pathlib.Path(f'/home/mchlsdrv/Desktop/projects/phd/qoe/whatsapp/output/cv_{TS}')
-SAVE_DIR = pathlib.Path(f'/home/projects/bagon/msidorov/projects/qoe/whatsapp/output/cv_{TS}')
+CV_ROOT_DIR = pathlib.Path('C:\\Users\\msidorov\\Desktop\\projects\\qoe\\whatsapp\\data\\packet_size_cv_10_folds_float')
+# CV_ROOT_DIR = pathlib.Path('/home/projects/bagon/msidorov/projects/qoe/whatsapp/data/packet_size_cv_10_folds_float')
+SAVE_DIR = pathlib.Path(f'/home/mchlsdrv/Desktop/projects/phd/qoe/whatsapp/output/cv_{TS}')
+# SAVE_DIR = pathlib.Path(f'/home/projects/bagon/msidorov/projects/qoe/whatsapp/output/cv_{TS}')
 
 os.makedirs(SAVE_DIR, exist_ok=True)
 

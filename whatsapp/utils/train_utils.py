@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import torch
 import torch.utils.data
+from sklearn.neighbors import KNeighborsClassifier
 from tqdm import tqdm
 
 from configs.params import LR_REDUCTION_FREQ, LR_REDUCTION_FCTR, DROPOUT_START, DROPOUT_P
@@ -215,6 +216,9 @@ def run_cv(model, model_params: dict, cv_root_dir: pathlib.Path or str, n_folds:
             test_data_reductions = np.append(test_data_reductions, test_rdct_pct)
 
             test_df, _, _ = normalize_columns(data_df=test_df, columns=[*features])
+
+            knn_classifier = KNeighborsClassifier(n_neighbors=5)
+            res = knn_classifier.fit(train_df.loc[:, features].values, train_df.loc[:, labels].values)
 
             train_data, val_data, test_data, test_ds = get_data(
                 train_df=train_df,
