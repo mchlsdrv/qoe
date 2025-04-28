@@ -155,7 +155,7 @@ class AutoEncoder(torch.nn.Module):
         # - Make sure the save_dir exists and of type pathlib.Path
         assert isinstance(save_dir, str) or isinstance(save_dir, pathlib.Path), f'AE: save_dir must be of type str or pathlib.Path, but is of type {type(save_dir)}!'
         self.save_dir = save_dir
-        os.makedirs(self.save_dir, exist_ok=True)
+        # os.makedirs(self.save_dir, exist_ok=True)
         self.save_dir = pathlib.Path(self.save_dir)
 
         self._build()
@@ -265,6 +265,11 @@ class GRAGDataset(torch.utils.data.Dataset):
     def __init__(self, knn_neighbors: int = 5):
         super().__init__()
         self.knn_classifier = KNeighborsClassifier(n_neighbors=knn_neighbors)
+        self.edges = None
+
+    def get_edges(self, X, y):
+        self.edges = self.knn_classifier.fit(X, y)
+
 
 
 class GCNRegressor(torch.nn.Module):

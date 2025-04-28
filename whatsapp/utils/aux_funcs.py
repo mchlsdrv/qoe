@@ -18,8 +18,6 @@ from configs.params import (
     DROPOUT_P,
     BATCH_SIZE,
     VAL_PROP,
-    TRAIN_DATA_FILE,
-    TEST_DATA_FILE,
     OUTPUT_DIR,
     OUTLIER_TH,
     MOMENTUM,
@@ -62,9 +60,7 @@ def get_arg_parser():
     parser.add_argument('--dropout_delta', type=int, default=DROPOUT_DELTA, help='The number of epochs in which the p_drop will be constant')
     parser.add_argument('--dropout_p', type=float, default=DROPOUT_P, help='The probability of the unit to be zeroed out')
     parser.add_argument('--dropout_p_max', type=float, default=DROPOUT_P_MAX, help='The maximal probability of the unit to be zeroed out')
-    parser.add_argument('--train_data_file', type=str, default=TRAIN_DATA_FILE, help='The path to the train data file')
     parser.add_argument('--desc', type=str, default=DESCRIPTION, help='The description of the current experiment')
-    parser.add_argument('--test_data_file', type=str, default=TEST_DATA_FILE, help='The path to the train_test data file')
     parser.add_argument('--momentum', type=float, default=MOMENTUM, help='The momentum value to use in training')
     parser.add_argument('--weight_decay', type=float, default=WEIGHT_DECAY, help='The weight decay value to use in training')
     parser.add_argument('--rbm_visible_units', type=int, default=RBM_VISIBLE_UNITS, help='The number of visible units')

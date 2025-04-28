@@ -4,12 +4,13 @@ import numpy as np
 import pandas as pd
 import torch
 import torch.utils.data
+import sklearn
 from tqdm import tqdm
 
-from configs.params import LR_REDUCTION_FREQ, LR_REDUCTION_FCTR, DROPOUT_START, DROPOUT_P
-from regression_utils import calc_errors
+from configs.params import LR_REDUCTION_FREQ, LR_REDUCTION_FCTR, DROPOUT_START, DROPOUT_P, OUTLIER_TH
+from utils.regression_utils import calc_errors
 from utils.aux_funcs import plot_losses
-from utils.data_utils import calc_data_reduction, normalize_columns, get_data, get_input_data
+from utils.data_utils import calc_data_reduction, normalize_columns, get_data, get_input_data, remove_outliers
 
 
 def save_checkpoint(model, optimizer, filename: str or pathlib.Path):
@@ -19,7 +20,7 @@ def save_checkpoint(model, optimizer, filename: str or pathlib.Path):
         state_dict=model.state_dict(),
         optimizer=optimizer.state_dict(),
     )
-    os.makedirs(filename.parent, exist_ok=True)
+    # os.makedirs(filename.parent, exist_ok=True)
     torch.save(state, filename)
 
 
@@ -49,7 +50,7 @@ def get_train_val_losses(
     # - Make sure the save_dir exists and of type pathlib.Path
     assert isinstance(save_dir, str) or isinstance(save_dir,
                                                    pathlib.Path), f'save_dir must be of type str or pathlib.Path, but is of type {type(save_dir)}!'
-    os.makedirs(save_dir, exist_ok=True)
+    # os.makedirs(save_dir, exist_ok=True)
     save_dir = pathlib.Path(save_dir)
 
     # - Initialize the p_drop to 0.0
@@ -170,15 +171,20 @@ def test_model(model: torch.nn.Module, data_loader: torch.utils.data.DataLoader,
     return y_true, y_pred
 
 
-def run_cv(model, model_params: dict, cv_root_dir: pathlib.Path or str, n_folds: int, features: list, labels: list, save_dir: pathlib.Path or None, nn_params: dict):
-    tokenize = True if model_params.get('model_name') == 'bert-base-uncased' else False
+def run_cv(model, model_name: str,  model_params: dict or None, cv_root_dir: pathlib.Path or str, n_folds: int, features: list, label: str, save_dir: pathlib.Path or None, nn_params: dict, log_file):
+    print(f'> Running {n_folds}-CV ...', file=log_file)
+    test_objective = ''
+    tokenize = True if model_name == 'bert-base-uncased' else False
 
     train_data_reductions = np.array([])
     test_data_reductions = np.array([])
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
-    results = pd.DataFrame(columns=['true', 'predicted', 'error (%)'], dtype=np.float32)
-    for fld_idx, fold_dir in enumerate(os.listdir(cv_root_dir)):
+    results = pd.DataFrame()
+    fld_idx = 0
+    for fold_dir in tqdm(os.listdir(cv_root_dir)):
+        print(f'=========================================================================', file=log_file)
+        print(f'> CV Fold: {fld_idx + 1}', file=log_file)
         if fold_dir[0] != '.':
             cv_save_dir = save_dir / f'cv{fld_idx + 1}'
 
@@ -188,46 +194,58 @@ def run_cv(model, model_params: dict, cv_root_dir: pathlib.Path or str, n_folds:
             cv_test_dir = cv_save_dir / 'test'
             os.makedirs(cv_test_dir)
 
-            feat_lbls_names = [*features, *labels]
+            feat_lbls_names = [*features, label]
 
             # - Train data
             train_df = pd.read_csv(cv_root_dir / fold_dir / 'train_data.csv')
             train_df = train_df.loc[:, feat_lbls_names]
-            train_data_len_orig = len(train_df)
-
-            # -- Remove the test data rows where the label is 0
-            train_df = train_df.loc[train_df.loc[:, *labels] > 0]
-            train_data_len_reduced = len(train_df)
-            train_rdct_pct = calc_data_reduction(original_size=train_data_len_orig, reduced_size=train_data_len_reduced)
-            train_data_reductions = np.append(train_data_reductions, train_rdct_pct)
-
             train_df, _, _ = normalize_columns(data_df=train_df, columns=[*features])
+            train_df, train_rdct_pct = remove_outliers(
+                dataset=train_df,
+                columns=features,
+                std_th=OUTLIER_TH,
+                log_file=log_file
+            )
+            train_df.dropna(axis=0, inplace=True)
+            train_data_reductions = np.append(train_data_reductions, train_rdct_pct)
 
             # - Test data
             test_df = pd.read_csv(cv_root_dir / fold_dir / 'test_data.csv')
             test_df = test_df.loc[:, feat_lbls_names]
             test_data_len_orig = len(test_df)
+            test_df, _, _ = normalize_columns(data_df=test_df, columns=[*features])
+            test_df.dropna(axis=0, inplace=True)
+
+            # - Make sure that the train and the test data are both made for the same task
+            train_objective = 'classification' if train_df.loc[:, label].dtype == object else 'regression'
+            test_objective = 'classification' if test_df.loc[:, label].dtype == object else 'regression'
+            assert train_objective == test_objective, f'ERROR: The train objective ({train_objective}) does not match the test objective ({test_objective})!'
 
             # -- Remove the test data rows where the label is 0
-            test_df = test_df.loc[test_df.loc[:, *labels] > 0]
-            test_data_len_reduced = len(test_df)
-            test_rdct_pct = calc_data_reduction(original_size=test_data_len_orig, reduced_size=test_data_len_reduced)
-            test_data_reductions = np.append(test_data_reductions, test_rdct_pct)
-
-            test_df, _, _ = normalize_columns(data_df=test_df, columns=[*features])
+            if test_objective == 'regression':
+                test_data_len_reduced = len(test_df)
+                test_df = test_df.loc[test_df.loc[:, label] > 0]
+                test_rdct_pct = calc_data_reduction(original_size=test_data_len_orig, reduced_size=test_data_len_reduced)
+                test_data_reductions = np.append(test_data_reductions, test_rdct_pct)
+            else:
+                # - Convert the str labels to ints
+                feat_codes = model_params.get('feature_codes')
+                inv_feat_codes = {v: k for k, v in feat_codes.items()}
+                train_df.loc[:, label] = train_df.loc[:, label].apply(lambda x: feat_codes.get(x))
+                test_df.loc[:, label] = test_df.loc[:, label].apply(lambda x: feat_codes.get(x))
 
             train_data, val_data, test_data, test_ds = get_data(
                 train_df=train_df,
                 test_df=test_df,
                 features=features,
-                labels=labels,
+                labels=[label],
                 batch_size=nn_params.get('batch_size'),
                 val_prop=nn_params.get('val_prop'),
                 tokenize=tokenize
             )
 
+            # - For NN-based models
             if isinstance(val_data, torch.utils.data.DataLoader):
-                # - For NN-based models
 
                 # - Build the model
                 mdl = model(**model_params)
@@ -254,49 +272,139 @@ def run_cv(model, model_params: dict, cv_root_dir: pathlib.Path or str, n_folds:
             else:
                 # - For ML-based models
                 X_train, y_train = train_data[0], train_data[1]
-                model.fit(
-                    X_train,
-                    y_train
+                if isinstance(model_params, dict):
+                    mdl = model(**model_params)
+                else:
+                    mdl = model()
+                mdl.fit(
+                    X_train.astype(np.float32),
+                    y_train.flatten().astype(np.int16)
                 )
 
-                X_test, y_true = test_data[0], test_data[1]
+                X_test = test_data[0]
 
                 # - Predict the y_test labels based on X_test features
-                y_true, y_pred = model.predict(X_test)
+                y_pred = mdl.predict(X_test)
 
-            errs = calc_errors(true=y_true, predicted=y_pred)
+            y_true = test_data[1]
+            if test_objective == 'regression':
+                errs = calc_errors(true=y_true, predicted=y_pred)
 
-            print(f'''
-            Mean Test Errors - {fld_idx + 1} CV Fold:
-                > Mean true values      : {y_true.mean():.2f}+/-{y_true.std():.3f}
-                > Mean predicted values : {y_pred.mean():.2f}+/-{y_pred.std():.3f}
-                > Mean errors           : {errs.mean():.2f}+/-{errs.std():.3f}
-''')
-            results = pd.concat([
-                results,
-                pd.DataFrame(
-                    {
-                        'true': y_true.flatten(),
-                        'predicted': y_pred.flatten(),
-                        'error (%)': errs.flatten()
-                    }
-                )
-            ], ignore_index=True)
+                y_true_mean = y_true.mean()
+                y_pred_mean = y_pred.mean()
+                pred_vs_true_err_pct = y_pred.mean()
 
+                print(f'''
+                Mean Test Errors - {fld_idx + 1} CV Fold:
+                    > Mean true values        : {y_true_mean:.2f}+/-{y_true.std():.3f}
+                    > Mean predicted values   : {y_pred_mean:.2f}+/-{y_pred.std():.3f}
+                    > Mean true vs pred error : {pred_vs_true_err_pct} %
+                    > Mean errors             : {errs.mean():.2f}+/-{errs.std():.3f}
+    ''', file=log_file)
+                results = pd.concat([
+                    results,
+                    pd.DataFrame(
+                        {
+                            'true': y_true.flatten(),
+                            'predicted': y_pred.flatten(),
+                            'error (%)': errs.flatten()
+                        }
+                    )
+                ], ignore_index=True)
+            else:
+                # - Get the unique classes
+                pred_cls = np.unique(y_true)
+
+                # - Get the metrics
+                precision, recall, f1_score, support = sklearn.metrics.precision_recall_fscore_support(y_true.flatten().astype(np.int16), y_pred.flatten().astype(np.int16))
+
+                # - Get back the original feature names
+                metrics = list(zip([inv_feat_codes.get(cls) for cls in pred_cls], precision, recall, f1_score, support))
+
+                print(f'=========================================================================', file=log_file)
+                print(f'- Results for {fld_idx + 1} CV fold', file=log_file)
+                for (cls_nm, prec, rec, f1, sup) in metrics:
+                    print(f'''
+                            Test Scores for class {cls_nm} - {fld_idx + 1} CV Fold:
+                                > Precision : {prec:.3f}
+                                > Recall    : {rec:.3f}
+                                > F1 Score  : {f1:.3f}
+                                > Support   : {sup}
+                    ''', file=log_file)
+
+                    results = pd.concat([
+                        results,
+                        pd.DataFrame(
+                            {
+                                'class': cls_nm,
+                                'precision': prec,
+                                'recall': rec,
+                                'f1': f1,
+                                'support': sup,
+                                'cv_fold': fld_idx + 1
+                            },
+                            index=pd.Index([0])
+                        )
+                    ], ignore_index=True)
+
+            results.reset_index(drop=True, inplace=True)
             results.to_csv(cv_test_dir / f'{fld_idx}_fold_final_results.csv')
 
-    results.to_csv(cv_root_dir / f'{n_folds}_folds_cv_results.csv')
+        fld_idx += 1
 
-    mean_error = results.loc[:, "error (%)"].mean()
-    std_error = results.loc[:, "error (%)"].std()
+    results.to_csv(save_dir / f'{n_folds}_folds_cv_results.csv')
+
+
+    if test_objective == 'regression':
+        mean_error = results.loc[:, "error (%)"].mean()
+        std_error = results.loc[:, "error (%)"].std()
+        print(f'''
+=========================================================================       
+=========================================================================       
+=    Mean Stats on {n_folds} CV for {label}:
+=        Mean Errors (%)
+=        ---------------
+=        {mean_error:.2f}+/-{std_error:.3f}
+=========================================================================       
+=========================================================================       
+        ''')
+    else:
+        results_mean_gb = results.groupby('class').agg('mean')
+        results_std_gb = results.groupby('class').agg('std')
+
+        res_means = results_mean_gb.reset_index()
+        res_stds = results_std_gb.reset_index()
+        res_total_mean = res_means.loc[:, ['precision', 'recall', 'f1']].mean()
+        res_total_std = res_means.loc[:, ['precision', 'recall', 'f1']].std()
+        print(f'''
+=========================================================================       
+=========================================================================       
+        ''')
+        print(f'> Final results for configuration: {model_params.get("feature_type")} | {label}')
+        print(f'''
+        - Precision: {res_total_mean.iloc[0]:.2f} +/- {res_total_std.iloc[0]:.3f} 
+        - Recall: {res_total_mean.iloc[1]:.2f} +/- {res_total_std.iloc[1]:.3f}
+        - F1-Score: {res_total_mean.iloc[2]:.2f} +/- {res_total_std.iloc[2]:.3f}
+        ''')
+        print('Per-class Performance:')
+        for cls in res_means.loc[:, 'class']:
+            print('---')
+            print(f'Class: {cls}')
+            print(f"\t- Precision: {res_means.loc[res_means.loc[:, 'class'] == cls, 'precision'].values[0]:.2f} +/- {res_stds.loc[res_stds.loc[:, 'class'] == cls, 'precision'].values[0]:.3f}")
+            print(f"\t- Recall: {res_means.loc[res_means.loc[:, 'class'] == cls, 'recall'].values[0]:.2f} +/- {res_stds.loc[res_stds.loc[:, 'class'] == cls, 'recall'].values[0]:.3f}")
+            print(f"\t- F1-Score: {res_means.loc[res_means.loc[:, 'class'] == cls, 'f1'].values[0]:.2f} +/- {res_stds.loc[res_stds.loc[:, 'class'] == cls, 'f1'].values[0]:.3f}")
+        print(f'''
+=========================================================================       
+=========================================================================       
+        ''')
     print(f'''
-Mean Stats on {n_folds} CV for {labels}:
-    Mean Errors (%)
-    ---------------
-    {mean_error:.2f}+/-{std_error:.3f}
-
     Mean reduced data (%)
-        - Train: {train_data_reductions.mean():.2f}+/-{train_data_reductions.std():.3f}
-        - Test: {test_data_reductions.mean():.2f}+/-{test_data_reductions.std():.3f}
+        - Train: {0.0 if not len(train_data_reductions) else train_data_reductions.mean():.2f}+/-{0.0 if not len(train_data_reductions) else train_data_reductions.std():.3f}
+        - Test: {0.0 if not len(test_data_reductions) else test_data_reductions.mean():.2f}+/-{0.0 if not len(test_data_reductions) else test_data_reductions.std():.3f}
     ''')
+    print(f'''
+    Mean reduced data (%)
+        - Train: {0.0 if not len(train_data_reductions) else train_data_reductions.mean():.2f}+/-{0.0 if not len(train_data_reductions) else train_data_reductions.std():.3f}
+        - Test: {0.0 if not len(test_data_reductions) else test_data_reductions.mean():.2f}+/-{0.0 if not len(test_data_reductions) else test_data_reductions.std():.3f}
+    ''', file=log_file)
     return results
