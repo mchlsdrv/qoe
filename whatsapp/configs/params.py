@@ -1,15 +1,16 @@
 import datetime
 import pathlib
 import torch
+from sklearn import svm
+from sklearn.ensemble import RandomForestRegressor
+from xgboost import  XGBRegressor
+from catboost import  CatBoostRegressor
 
 # -----------
 # - GENERAL -
 # -----------
 EPSILON = 1e-9
 RANDOM_SEED = 0
-
-ROOT_DIR = pathlib.Path('./')
-OUTPUT_DIR = ROOT_DIR / 'outputs'
 
 DESCRIPTION = f'auto_encoder'
 TS = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -18,14 +19,11 @@ DEVICE = torch.device('cuda') if torch.cuda.is_available() else torch.device('cp
 # --------
 # - DATA -
 # --------
-DATA_ROOT_DIR = pathlib.Path('./data')
+DATA_ROOT_DIR = pathlib.Path('/Users/mchlsdrv/Desktop/projects/phd/qoe/whatsapp/data')
+EXPERIMENTS_DIR = pathlib.Path('/Users/mchlsdrv/Desktop/projects/phd/qoe/whatsapp/output/experiments')
+OUTPUT_DIR = pathlib.Path(f'/Users/mchlsdrv/Desktop/projects/phd/qoe/whatsapp/output')
 
-CV_10_DATA_ROOT_DIR = DATA_ROOT_DIR / 'cv_10_folds'
-
-TRAIN_DATA_FILE = DATA_ROOT_DIR / 'train_test/train_data.csv'
-TEST_DATA_FILE = DATA_ROOT_DIR / 'train_test/test_data.csv'
-
-OUTLIER_TH = 2
+OUTLIER_TH = 3
 
 # ----------------
 # - ARCHITECTURE -
@@ -56,6 +54,18 @@ DROPOUT_P = 0.05
 DROPOUT_P_MAX = 0.5
 RBM_K_GIBBS_STEPS = 10
 
+FEATURE_NAMES = {
+    'frame.time_relative': 'relative_arrival_time',
+    'frame.time_epoch': 'arrival_time',
+    'ip.proto': 'ip_protocol',
+    'ip.len': 'ip_packet_length',
+    'ip.src': 'ip_source',
+    'ip.dst': 'ip_destination',
+    'udp.srcport': 'udp_source_port',
+    'udp.dstport': 'udp_destination_port',
+    'udp.length': 'udp_datagram_length',
+}
+
 PACKET_SIZE_FEATURES = [
     'number_of_packet_sizes_in_time_window',
     'number_of_unique_packet_sizes_in_time_window',
@@ -79,3 +89,16 @@ PIAT_FEATURES = [
     'q2_piat',
     'q3_piat',
 ]
+
+MODELS = {
+    'RandomForestRegressor': RandomForestRegressor,
+    'XGBoost': XGBRegressor,
+    'CatBoost': CatBoostRegressor,
+    'SVM': svm.SVR
+}
+
+FEATURE_CODES = {
+    'Malware': 0,
+    'VPN': 1,
+    'NonVPN': 2
+}

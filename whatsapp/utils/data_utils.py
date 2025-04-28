@@ -1,3 +1,6 @@
+import os
+import pathlib
+
 import torch
 import torch.utils.data
 import numpy as np
@@ -5,6 +8,7 @@ import pandas as pd
 import sklearn
 import sklearn.decomposition
 import scipy
+from tqdm import tqdm
 from transformers import AutoTokenizer
 
 from configs.params import OUTLIER_TH, EPSILON
@@ -100,8 +104,81 @@ class QoEDataset(torch.utils.data.Dataset):
         return x * self.labels_std + self.labels_mu
 
 
+def build_test_datasets(data: pd.DataFrame, n_folds: int,  root_save_dir: pathlib.Path):
+    """
+    Divides the cv_n_folds into n_test_sets train-train_test datasets each with proportion of
+    (1-test_set_proportion):test_set_proportion respectively.
+
+    * Each train_test dataset is chosen to not include items from other train_test sets
+
+    :param data: pandas.DataFrame object containing the cv_5_folds
+    :param n_folds: Number of train_test sets to produce
+    :param root_save_dir: The location to save the datasets at
+    :return: None
+    """
+    # - Get the total number of items
+    n_items = len(data)
+
+    # - Get the number of train_test items
+    test_set_proportion = n_folds / 100
+    n_test_items = int(n_items * test_set_proportion)
+
+    # - Produce the total set of indices
+    all_idxs = np.arange(n_items)
+
+    # - Produce the set of indices which may be chosen for train_test
+    valid_test_idxs = np.arange(n_items)
+
+    # - Create an n_test_sets train-train_test sets
+    for test_set_idx in tqdm(range(n_folds)):
+        # - Chose randomly n_test_items from the all_idxs
+        test_idxs = np.random.choice(all_idxs, n_test_items, replace=False)
+
+        # - Update the valid_test_idxs by removing the once which were chosen for the train_test
+        valid_test_idxs = np.setdiff1d(valid_test_idxs, test_idxs)
+
+        # - Get the train_test items
+        test_data = data.iloc[test_idxs].reset_index(drop=True)
+
+        # - Get the train_test items
+        train_data = data.iloc[np.setdiff1d(all_idxs, test_idxs)].reset_index(drop=True)
+
+        # - Save the train / train_test datasets
+
+        # -- Create a dir for the current train_test set
+        test_set_save_dir = root_save_dir / f'train_test{test_set_idx}'
+        os.makedirs(test_set_save_dir, exist_ok=True)
+
+        # -- Save teh datasets
+        # train_data.dropna(axis=0, inplace=True)
+        train_data.to_csv(test_set_save_dir / f'train_data.csv', index=False)
+
+        # test_data.dropna(axis=0, inplace=True)
+        test_data.to_csv(test_set_save_dir / f'test_data.csv', index=False)
+
+
+def remove_outliers(dataset: pd.DataFrame, columns: list, std_th: int, log_file):
+    L = len(dataset)
+    dataset = dataset.loc[(np.abs(scipy.stats.zscore(dataset.loc[:, columns])) < std_th).all(axis=1)]
+    N = len(dataset)
+    reduct_pct = calc_data_reduction(L, N)
+    print(f'''
+Outliers
+    Total before reduction: {L}
+    Total after reduction: {N}
+    > Present reduced: {reduct_pct:.3f}%
+''', file=log_file)
+
+    return dataset, reduct_pct
+
+
+def remove_zero_labels(dataset: pd.DataFrame, labels: list):
+    # - Clean the data points where labels are equal to 0, as it is not a realistic
+    for lbl in labels:
+        dataset = dataset.loc[dataset.loc[:, lbl] > 0]
+
+
 def normalize_columns(data_df, columns):
-    data_df = data_df.astype(float)
     mu, std = data_df.loc[:, columns].mean(), data_df.loc[:, columns].std()
     data_df.loc[:, columns] = (data_df.loc[:, columns] - mu) / (std + EPSILON)
     return data_df, mu, std
