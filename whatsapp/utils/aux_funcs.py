@@ -14,8 +14,8 @@ from configs.params import (
     LR,
     LR_REDUCTION_FREQ,
     LR_REDUCTION_FCTR,
-    DROPOUT_START,
-    DROPOUT_P,
+    DROPOUT_EPOCH_START,
+    DROPOUT_P_INIT,
     BATCH_SIZE,
     VAL_PROP,
     OUTPUT_DIR,
@@ -27,7 +27,7 @@ from configs.params import (
     RBM_K_GIBBS_STEPS,
     EPSILON,
     DESCRIPTION,
-    DROPOUT_DELTA,
+    DROPOUT_EPOCH_DELTA,
     DROPOUT_P_MAX
 )
 
@@ -56,9 +56,9 @@ def get_arg_parser():
     parser.add_argument('--output_dir', type=str, default=OUTPUT_DIR, help='The path to the directory where the outputs will be placed')
     parser.add_argument('--lr_reduction_freq', type=int, default=LR_REDUCTION_FREQ, help='Represents the number of epochs for the LR reduction')
     parser.add_argument('--lr_reduction_fctr', type=float, default=LR_REDUCTION_FCTR, help='Represents the factor by which the LR reduced each LR_REDUCTION_FREQ epochs')
-    parser.add_argument('--dropout_start', type=int, default=DROPOUT_START, help='The epoch when the dropout technique start being applied')
-    parser.add_argument('--dropout_delta', type=int, default=DROPOUT_DELTA, help='The number of epochs in which the p_drop will be constant')
-    parser.add_argument('--dropout_p', type=float, default=DROPOUT_P, help='The probability of the unit to be zeroed out')
+    parser.add_argument('--dropout_start', type=int, default=DROPOUT_EPOCH_START, help='The epoch when the dropout technique start being applied')
+    parser.add_argument('--dropout_delta', type=int, default=DROPOUT_EPOCH_DELTA, help='The number of epochs in which the p_drop will be constant')
+    parser.add_argument('--dropout_p', type=float, default=DROPOUT_P_INIT, help='The probability of the unit to be zeroed out')
     parser.add_argument('--dropout_p_max', type=float, default=DROPOUT_P_MAX, help='The maximal probability of the unit to be zeroed out')
     parser.add_argument('--desc', type=str, default=DESCRIPTION, help='The description of the current experiment')
     parser.add_argument('--momentum', type=float, default=MOMENTUM, help='The momentum value to use in training')

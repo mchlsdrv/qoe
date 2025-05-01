@@ -10,15 +10,16 @@ import torch.utils.data
 import sklearn
 from tqdm import tqdm
 
-from configs.params import LR_REDUCTION_FREQ, LR_REDUCTION_FCTR, DROPOUT_START, DROPOUT_P, OUTLIER_TH, CHECKPOINT_SAVE_FREQUENCY
+from configs.params import VERBOSE, LR_REDUCTION_FREQ, LR_REDUCTION_FCTR, OUTLIER_TH, CHECKPOINT_SAVE_FREQUENCY, DROPOUT_EPOCH_START, DROPOUT_P_INIT, DROPOUT_P_MAX, DROPOUT_EPOCH_DELTA
 from utils.regression_utils import calc_errors
 from utils.aux_funcs import plot_losses
 from utils.data_utils import calc_data_reduction, normalize_columns, get_data, get_input_data, remove_outliers
 
 
-def save_checkpoint(model, optimizer, filename: str or pathlib.Path):
+def save_checkpoint(model, optimizer, filename: str or pathlib.Path, verbose: bool = False):
     filename = pathlib.Path(filename)
-    print(f'=> Saving checkpoint to \'{filename}\' ...')
+    if verbose:
+        print(f'=> Saving checkpoint to \'{filename}\' ...')
     state = dict(
         state_dict=model.state_dict(),
         optimizer=optimizer.state_dict(),
@@ -27,8 +28,9 @@ def save_checkpoint(model, optimizer, filename: str or pathlib.Path):
     torch.save(state, filename)
 
 
-def load_checkpoint(model, checkpoint_file: str or pathlib.Path):
-    print('=> Loading checkpoint ...')
+def load_checkpoint(model, checkpoint_file: str or pathlib.Path, verbose: bool = False):
+    if verbose:
+        print('=> Loading checkpoint ...')
     checkpoint = torch.load(checkpoint_file)
     model.load_state_dict(checkpoint['state_dict'])
 
@@ -37,22 +39,22 @@ def get_train_val_losses(
         model: torch.nn.Module, epochs: int,
         train_data_loader: torch.utils.data.DataLoader, val_data_loader: torch.utils.data.DataLoader,
         loss_function: torch.nn, optimizer: torch.optim,
-        lr_reduce_frequency: int, lr_reduce_factor: float = 1.0,
-        dropout_epoch_start: int = 20, dropout_epoch_delta: int = 20, p_dropout_init: float = 0.1,
-        p_dropout_max: float = 0.5,
-        checkpoint_file: pathlib.Path = None,
-        checkpoint_save_frequency: int = 10,
-        device: torch.device = torch.device('cpu'),
-        tokenize: bool = False,
-        save_dir: str or pathlib.Path = pathlib.Path('./outputs')
+        lr_reduce_frequency: int, lr_reduce_factor: float,
+        dropout_epoch_start: int, dropout_epoch_delta: int, p_dropout_init: float,
+        p_dropout_max: float,
+        checkpoint_file: pathlib.Path,
+        checkpoint_save_frequency: int,
+        device: torch.device,
+        tokenize: bool,
+        save_dir: str or pathlib.Path,
+        log_file,
 ):
     # - Load the checkpoint to continue training
     if isinstance(checkpoint_file, pathlib.Path):
         load_checkpoint(model=model, checkpoint_file=checkpoint_file)
 
     # - Make sure the save_dir exists and of type pathlib.Path
-    assert isinstance(save_dir, str) or isinstance(save_dir,
-                                                   pathlib.Path), f'save_dir must be of type str or pathlib.Path, but is of type {type(save_dir)}!'
+    assert isinstance(save_dir, str) or isinstance(save_dir, pathlib.Path), f'save_dir must be of type str or pathlib.Path, but is of type {type(save_dir)}!'
     # os.makedirs(save_dir, exist_ok=True)
     save_dir = pathlib.Path(save_dir)
 
@@ -62,13 +64,13 @@ def get_train_val_losses(
     # - Initialize the train / val loss arrays
     train_losses = np.array([])
     val_losses = np.array([])
+    best_loss = np.inf
 
     t_strt = time.time()
     for epch in range(epochs):
         model.train(True)
         if epch > dropout_epoch_start and p_drop < p_dropout_max:
             p_drop = p_dropout_init * ((epch - dropout_epoch_start + dropout_epoch_delta) // dropout_epoch_delta)
-        print(f'\t- Epoch: {epch + 1}/{epochs} ({100 * (epch + 1) / epochs:.2f}% done)')
         # print(f'\t ** INFO ** p_drop = {p_drop:.4f}')
         btch_train_losses = np.array([])
         for data in train_data_loader:
@@ -88,7 +90,9 @@ def get_train_val_losses(
             old_lr = optimizer.param_groups[0]['lr']
             new_lr = old_lr * lr_reduce_factor
             optimizer.param_groups[0]['lr'] = new_lr
-            print(f'\t ** INFO ** The learning rate was changed from {old_lr} -> {new_lr}')
+            if VERBOSE:
+                print(f'\t ** INFO ** The learning rate was changed from {old_lr} -> {new_lr}')
+            print(f'\t ** INFO ** The learning rate was changed from {old_lr} -> {new_lr}', file=log_file)
 
         train_losses = np.append(train_losses, btch_train_losses.mean())
 
@@ -103,25 +107,38 @@ def get_train_val_losses(
                 loss = loss_function(results, Y)
                 btch_val_losses = np.append(btch_val_losses, loss.item())
 
-        val_losses = np.append(val_losses, btch_val_losses.mean())
-
+        btch_val_loss_mean = btch_val_losses.mean()
+        val_losses = np.append(val_losses, btch_val_loss_mean)
         plot_losses(train_losses=train_losses, val_losses=val_losses, save_dir=save_dir)
 
-        # - Save the checkpoint
+        # - Save the best checkpoint
+        if btch_val_loss_mean < best_loss:
+            save_checkpoint(model=model, optimizer=optimizer, filename=save_dir / f'checkpoints/best_checkpoint.ckpt', verbose=VERBOSE)
+
+        # - Save the regular checkpoint
         if epch > 0 and epch % checkpoint_save_frequency == 0:
-            save_checkpoint(
-                model=model,
-                optimizer=optimizer,
-                filename=save_dir / f'checkpoints/epoch_{epch}_checkpoint.ckpt'
-            )
+            save_checkpoint(model=model, optimizer=optimizer, filename=save_dir / f'checkpoints/epoch_{epch}_checkpoint.ckpt')
 
-        print(f'\t\t Epoch {epch + 1} loss: train = {train_losses.mean():.4f} | validation = {val_losses.mean():.4f}')
+        # - Save to the log
+        print(f'\t- Epoch: {epch + 1}/{epochs} ({100 * (epch + 1) / epochs:.2f}% done): train loss = {train_losses.mean():.4f} | validation loss = {val_losses.mean():.4f}', file=log_file)
 
-    print(f'\t> The training took: {datetime.timedelta(seconds=time.time() - t_strt)}')
+        # - Print to the STDOUT
+        print(f'\t- Epoch: {epch + 1}/{epochs} ({100 * (epch + 1) / epochs:.2f}% done): train loss = {train_losses.mean():.4f} | validation loss = {val_losses.mean():.4f}')
+
+    t_end = time.time() - t_strt
+    # - Save to the log
+    print(f'\t> The training took: {datetime.timedelta(seconds=t_end)}', file=log_file)
+
+    # - Print to the STDOUT
+    print(f'\t> The training took: {datetime.timedelta(seconds=t_end)}')
+
+    # - Load the checkpoint with the best loss
+    load_checkpoint(model=model, checkpoint_file=save_dir / f'checkpoints/best_checkpoint.ckpt', verbose=VERBOSE)
+
     return train_losses, val_losses
 
 
-def train_model(model, epochs, train_data_loader, validation_data_loader, loss_function, optimizer, learning_rate, save_dir, tokenize: bool = False):
+def train_model(model, epochs, train_data_loader, validation_data_loader, checkpoint_file: str or pathlib.Path, loss_function, optimizer, learning_rate, save_dir, log_file, tokenize: bool = False):
     # - Train
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
     model.to(device)
@@ -136,12 +153,16 @@ def train_model(model, epochs, train_data_loader, validation_data_loader, loss_f
         optimizer=optimizer(model.parameters(), lr=learning_rate),
         lr_reduce_frequency=LR_REDUCTION_FREQ,
         lr_reduce_factor=LR_REDUCTION_FCTR,
-        dropout_epoch_start=DROPOUT_START,
-        p_dropout_init=DROPOUT_P,
+        dropout_epoch_start=DROPOUT_EPOCH_START,
+        p_dropout_init=DROPOUT_P_INIT,
+        p_dropout_max=DROPOUT_P_MAX,
+        dropout_epoch_delta=DROPOUT_EPOCH_DELTA,
         checkpoint_save_frequency=CHECKPOINT_SAVE_FREQUENCY,
+        checkpoint_file=checkpoint_file,
         tokenize=tokenize,
         device=device,
-        save_dir=save_dir
+        save_dir=save_dir,
+        log_file=log_file
     )
 
     # - Save the train / val loss metadata
@@ -254,11 +275,13 @@ def run_cv(model, model_name: str,  model_params: dict or None, cv_root_dir: pat
                     epochs=nn_params.get('epochs'),
                     train_data_loader=train_data,
                     validation_data_loader=val_data,
+                    checkpoint_file=None,
                     loss_function=nn_params.get('loss_function'),
                     optimizer=nn_params.get('optimizer'),
                     learning_rate=nn_params.get('learning_rate'),
                     save_dir=cv_train_dir,
-                    tokenize=tokenize
+                    tokenize=tokenize,
+                    log_file=log_file
                 )
 
                 # - Test the model
@@ -266,7 +289,7 @@ def run_cv(model, model_name: str,  model_params: dict or None, cv_root_dir: pat
                     model=mdl,
                     data_loader=test_data,
                     tokenize=tokenize,
-                    device=device
+                    device=device,
                 )
             else:
                 # - For ML-based models
