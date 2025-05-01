@@ -55,7 +55,6 @@ def get_train_val_losses(
 
     # - Make sure the save_dir exists and of type pathlib.Path
     assert isinstance(save_dir, str) or isinstance(save_dir, pathlib.Path), f'save_dir must be of type str or pathlib.Path, but is of type {type(save_dir)}!'
-    # os.makedirs(save_dir, exist_ok=True)
     save_dir = pathlib.Path(save_dir)
 
     # - Initialize the p_drop to 0.0
@@ -71,13 +70,14 @@ def get_train_val_losses(
         model.train(True)
         if epch > dropout_epoch_start and p_drop < p_dropout_max:
             p_drop = p_dropout_init * ((epch - dropout_epoch_start + dropout_epoch_delta) // dropout_epoch_delta)
-        # print(f'\t ** INFO ** p_drop = {p_drop:.4f}')
+            print(f'\t ** INFO ** p_drop = {p_drop:.4f}', file=log_file)
+
         btch_train_losses = np.array([])
         for data in train_data_loader:
 
             input_data, Y = get_input_data(data=data, tokenize=tokenize, device=device)
 
-            results = model(*input_data)
+            results = model(*input_data, p_drop=p_drop)
             loss = loss_function(results, Y)
 
             optimizer.zero_grad()
@@ -103,7 +103,7 @@ def get_train_val_losses(
 
                 input_data, Y = get_input_data(data=data, tokenize=tokenize, device=device)
 
-                results = model(*input_data)
+                results = model(*input_data, p_drop=p_drop)
                 loss = loss_function(results, Y)
                 btch_val_losses = np.append(btch_val_losses, loss.item())
 
@@ -114,6 +114,7 @@ def get_train_val_losses(
         # - Save the best checkpoint
         if btch_val_loss_mean < best_loss:
             save_checkpoint(model=model, optimizer=optimizer, filename=save_dir / f'checkpoints/best_checkpoint.ckpt', verbose=VERBOSE)
+            best_loss = btch_val_loss_mean
 
         # - Save the regular checkpoint
         if epch > 0 and epch % checkpoint_save_frequency == 0:
