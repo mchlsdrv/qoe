@@ -23,7 +23,7 @@ INPUT_SIZE = 9
 OUTPUT_SIZE = 1
 N_LAYERS = 32
 N_UNITS = 512
-LOSS_FUNCTIONS = torch.nn.HuberLoss
+LOSS_FUNCTION = torch.nn.HuberLoss
 OPTIMIZER = torch.optim.Adam
 LEARNING_RATE = 1e-3
 
@@ -57,14 +57,15 @@ def main():
                     'batch_size': BATCH_SIZE,
                     'val_prop': VAL_PROP,
                     'epochs': EPOCHS,
-                    'loss_function': torch.nn.MSELoss,
+                    'loss_function': LOSS_FUNCTION,
                     'learning_rate': LEARNING_RATE,
-                    'optimizer': torch.optim.Adam
+                    'optimizer': OPTIMIZER
                 },
                 log_file=log_fl
             )
-
-        print(f'> The CV took total of {datetime.timedelta(seconds=time.time() - t_start)}')
+            t_end = time.time() - t_start
+            print(f'> The CV took total of {datetime.timedelta(seconds=t_end)}', file=log_fl)
+        print(f'> The CV took total of {datetime.timedelta(seconds=t_end)}')
 
 
 if __name__ == '__main__':
