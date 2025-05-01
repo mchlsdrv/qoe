@@ -1,5 +1,8 @@
+import datetime
 import os
 import pathlib
+import time
+
 import numpy as np
 import pandas as pd
 import torch
@@ -7,7 +10,7 @@ import torch.utils.data
 import sklearn
 from tqdm import tqdm
 
-from configs.params import LR_REDUCTION_FREQ, LR_REDUCTION_FCTR, DROPOUT_START, DROPOUT_P, OUTLIER_TH
+from configs.params import LR_REDUCTION_FREQ, LR_REDUCTION_FCTR, DROPOUT_START, DROPOUT_P, OUTLIER_TH, CHECKPOINT_SAVE_FREQUENCY
 from utils.regression_utils import calc_errors
 from utils.aux_funcs import plot_losses
 from utils.data_utils import calc_data_reduction, normalize_columns, get_data, get_input_data, remove_outliers
@@ -20,7 +23,7 @@ def save_checkpoint(model, optimizer, filename: str or pathlib.Path):
         state_dict=model.state_dict(),
         optimizer=optimizer.state_dict(),
     )
-    # os.makedirs(filename.parent, exist_ok=True)
+    os.makedirs(filename.parent, exist_ok=True)
     torch.save(state, filename)
 
 
@@ -60,15 +63,15 @@ def get_train_val_losses(
     train_losses = np.array([])
     val_losses = np.array([])
 
+    t_strt = time.time()
     for epch in range(epochs):
         model.train(True)
         if epch > dropout_epoch_start and p_drop < p_dropout_max:
             p_drop = p_dropout_init * ((epch - dropout_epoch_start + dropout_epoch_delta) // dropout_epoch_delta)
-        print(f'\nEpoch: {epch}/{epochs} ({100 * epch / epochs:.2f}% done)')
-        print(f'\t ** INFO ** p_drop = {p_drop:.4f}')
+        print(f'\t- Epoch: {epch + 1}/{epochs} ({100 * (epch + 1) / epochs:.2f}% done)')
+        # print(f'\t ** INFO ** p_drop = {p_drop:.4f}')
         btch_train_losses = np.array([])
-        btch_pbar = tqdm(train_data_loader)
-        for data in btch_pbar:
+        for data in train_data_loader:
 
             input_data, Y = get_input_data(data=data, tokenize=tokenize, device=device)
 
@@ -112,17 +115,9 @@ def get_train_val_losses(
                 filename=save_dir / f'checkpoints/epoch_{epch}_checkpoint.ckpt'
             )
 
-        print(f'''
-==========================================
-================= STATS ==================
-==========================================
-    Epoch {epch + 1} loss:
-        > train = {train_losses.mean():.4f}
-        > validation = {val_losses.mean():.4f}
-==========================================
-==========================================
-        ''')
+        print(f'\t\t Epoch {epch + 1} loss: train = {train_losses.mean():.4f} | validation = {val_losses.mean():.4f}')
 
+    print(f'\t> The training took: {datetime.timedelta(seconds=time.time() - t_strt)}')
     return train_losses, val_losses
 
 
@@ -143,6 +138,7 @@ def train_model(model, epochs, train_data_loader, validation_data_loader, loss_f
         lr_reduce_factor=LR_REDUCTION_FCTR,
         dropout_epoch_start=DROPOUT_START,
         p_dropout_init=DROPOUT_P,
+        checkpoint_save_frequency=CHECKPOINT_SAVE_FREQUENCY,
         tokenize=tokenize,
         device=device,
         save_dir=save_dir
@@ -176,6 +172,7 @@ def run_cv(model, model_name: str,  model_params: dict or None, cv_root_dir: pat
     test_objective = ''
     tokenize = True if model_name == 'bert-base-uncased' else False
 
+    train_times = np.array([])
     train_data_reductions = np.array([])
     test_data_reductions = np.array([])
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
@@ -246,6 +243,7 @@ def run_cv(model, model_name: str,  model_params: dict or None, cv_root_dir: pat
             )
 
             # - For NN-based models
+            t_strt = time.time()
             if isinstance(val_data, torch.utils.data.DataLoader):
 
                 # - Build the model
@@ -287,7 +285,10 @@ def run_cv(model, model_name: str,  model_params: dict or None, cv_root_dir: pat
                 # - Predict the y_test labels based on X_test features
                 y_pred = mdl.predict(X_test)
 
-            y_true = test_data[1]
+                y_true = test_data[1]
+            t_train = time.time() - t_strt
+            train_times = np.append(train_times, t_train)
+            print(f'> Model training took: {datetime.timedelta(seconds=t_train)}')
             if test_objective == 'regression':
                 errs = calc_errors(true=y_true, predicted=y_pred)
 
@@ -410,4 +411,6 @@ def run_cv(model, model_name: str,  model_params: dict or None, cv_root_dir: pat
         - Train: {0.0 if not len(train_data_reductions) else train_data_reductions.mean():.2f}+/-{0.0 if not len(train_data_reductions) else train_data_reductions.std():.3f}
         - Test: {0.0 if not len(test_data_reductions) else test_data_reductions.mean():.2f}+/-{0.0 if not len(test_data_reductions) else test_data_reductions.std():.3f}
     ''', file=log_file)
+    print(f'Mean train time: {datetime.timedelta(seconds=train_times.mean())}+/-{datetime.timedelta(seconds=train_times.std())}')
+
     return results

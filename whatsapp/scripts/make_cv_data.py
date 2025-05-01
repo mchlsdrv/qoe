@@ -8,7 +8,7 @@ DATA_NAMES = ['piat', 'packet_size']
 DATA_FEATURES = [PIAT_FEATURES, PACKET_SIZE_FEATURES]
 
 N_FOLDS = 10
-DATA_ROOT_DIR = pathlib.Path(f'/Users/mchlsdrv/Desktop/projects/phd/qoe/whatsapp/output')
+DATA_ROOT_DIR = pathlib.Path(f'C:\\Users\\msidorov\\Desktop\\projects\\qoe\\whatsapp\\output')
 SHUFFLE = True
 
 if __name__ == '__main__':

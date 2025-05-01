@@ -3,8 +3,10 @@ import pathlib
 import torch
 from sklearn import svm
 from sklearn.ensemble import RandomForestRegressor
-from xgboost import  XGBRegressor
-from catboost import  CatBoostRegressor
+from xgboost import XGBRegressor
+from catboost import CatBoostRegressor
+
+from models import QoENet1D
 
 # -----------
 # - GENERAL -
@@ -19,9 +21,9 @@ DEVICE = torch.device('cuda') if torch.cuda.is_available() else torch.device('cp
 # --------
 # - DATA -
 # --------
-DATA_ROOT_DIR = pathlib.Path('/Users/mchlsdrv/Desktop/projects/phd/qoe/whatsapp/data')
-EXPERIMENTS_DIR = pathlib.Path('/Users/mchlsdrv/Desktop/projects/phd/qoe/whatsapp/output/experiments')
-OUTPUT_DIR = pathlib.Path(f'/Users/mchlsdrv/Desktop/projects/phd/qoe/whatsapp/output')
+DATA_ROOT_DIR = pathlib.Path('C:\\Users\\msidorov\\Desktop\\projects\\qoe\\whatsapp\\data')
+EXPERIMENTS_DIR = pathlib.Path('C:\\Users\\msidorov\\Desktop\\projects\\qoe\\whatsapp\\experiments')
+OUTPUT_DIR = pathlib.Path(f'C:\\Users\\msidorov\\Desktop\\projects\\qoe\\whatsapp\\output')
 
 OUTLIER_TH = 3
 
@@ -37,7 +39,8 @@ AUTO_ENCODER_CODE_LENGTH_PROPORTION = 32
 # ------------
 # - TRAINING -
 # ------------
-EPOCHS = 50
+EPOCHS = 200
+CHECKPOINT_SAVE_FREQUENCY = 50
 BATCH_SIZE = 64
 VAL_PROP = 0.2
 OPTIMIZER = torch.optim.Adam
@@ -94,7 +97,8 @@ MODELS = {
     'RandomForestRegressor': RandomForestRegressor,
     'XGBoost': XGBRegressor,
     'CatBoost': CatBoostRegressor,
-    'SVM': svm.SVR
+    'SVM': svm.SVR,
+    'QoENet1D': QoENet1D
 }
 
 FEATURE_CODES = {

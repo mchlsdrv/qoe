@@ -1,70 +1,70 @@
 import os
+import itertools
 import datetime
-import pathlib
-from configs.params import VAL_PROP, PACKET_SIZE_FEATURES, PIAT_FEATURES
-from models import QoENet1D
-from utils.train_utils import run_cv
+import time
+
 import torch
 
-
-DATA_TYPE = 'packet_size'
-# DATA_TYPE = 'piat'
+from utils.train_utils import run_cv
+from configs.params import PACKET_SIZE_FEATURES, PIAT_FEATURES, MODELS, OUTPUT_DIR, EXPERIMENTS_DIR, VAL_PROP
 
 TS = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
-# CV_ROOT_DIR = pathlib.Path('/home/mchlsdrv/Desktop/projects/phd/qoe/whatsapp/data/packet_size_cv_10_folds_float')
-CV_ROOT_DIR = pathlib.Path('C:\\Users\\msidorov\\Desktop\\projects\\qoe\\whatsapp\\data\\packet_size_cv_10_folds_float')
-# CV_ROOT_DIR = pathlib.Path('/home/projects/bagon/msidorov/projects/qoe/whatsapp/data/packet_size_cv_10_folds_float')
-SAVE_DIR = pathlib.Path(f'/home/mchlsdrv/Desktop/projects/phd/qoe/whatsapp/output/cv_{TS}')
-# SAVE_DIR = pathlib.Path(f'/home/projects/bagon/msidorov/projects/qoe/whatsapp/output/cv_{TS}')
+LABELS = ['fps', 'brisque', 'piqe']
+FEATURES = [('piat', PIAT_FEATURES), ('packet_size', PACKET_SIZE_FEATURES)]
 
-# SAVE_DIR = pathlib.Path(f'C:\\Users\\msidorov\\Desktop\\projects\\qoe\\whatsapp\\output\\cv_{TS}')
-# SAVE_DIR = pathlib.Path(f'/home/projects/bagon/msidorov/projects/qoe/whatsapp/output/cv_{TS}')
+N_CV_FOLDS = 10
 
-# LABELS = ['brisque']
-# LABELS = ['piqe']
-LABELS = ['fps']
-# LABELS = ['brisque', 'piqe', 'fps']
-EPOCHS = 200
+MODEL_NAME = 'QoENet1D'
+
+EPOCHS = 150
 BATCH_SIZE = 254
 INPUT_SIZE = 9
 OUTPUT_SIZE = 1
 N_LAYERS = 32
 N_UNITS = 512
 LOSS_FUNCTIONS = torch.nn.HuberLoss
-# LOSS_FUNCTIONS = torch.nn.MSELoss
 OPTIMIZER = torch.optim.Adam
 LEARNING_RATE = 1e-3
-MODEL = QoENet1D
 
 
 def main():
-    save_dir = pathlib.Path(f'/Users/mchlsdrv/Desktop/projects/phd/qoe/whatsapp/output/cv_{TS}')
-    os.makedirs(save_dir)
-    feats = PACKET_SIZE_FEATURES if DATA_TYPE == 'packet_size' else PIAT_FEATURES
-    run_cv(
-        model=MODEL,
-        model_params={
-            'model_name': 'QoENet1d',
-            'input_size': INPUT_SIZE,
-            'output_size': OUTPUT_SIZE,
-            'n_units': N_UNITS,
-            'n_layers': N_LAYERS
-        },
-        n_folds=10,
-        features=feats,
-        labels=LABELS,
-        cv_root_dir=CV_ROOT_DIR,
-        save_dir=save_dir,
-        nn_params={
-            'batch_size': BATCH_SIZE,
-            'val_prop': VAL_PROP,
-            'epochs': EPOCHS,
-            'loss_function': torch.nn.MSELoss,
-            'learning_rate': LEARNING_RATE,
-            'optimizer': torch.optim.Adam
-        }
-    )
+    for (lbl, (feat_typ, feats)) in itertools.product(LABELS, FEATURES):
+        print(f'> Running {N_CV_FOLDS}-fold CV for {feat_typ.upper()} feature type and {lbl.upper()} label ...')
+        cv_root_dir = OUTPUT_DIR / f'{feat_typ}_cv_10_folds'
+
+        save_dir = EXPERIMENTS_DIR / MODEL_NAME / f'cv_{N_CV_FOLDS}_folds_{TS}/{feat_typ.lower()}_features/{lbl}_prediction/'
+        os.makedirs(save_dir, exist_ok=True)
+
+        t_start = time.time()
+        with (save_dir / 'log.txt').open(mode='a') as log_fl:
+            run_cv(
+                model=MODELS.get(MODEL_NAME),
+                model_name=MODEL_NAME,
+                model_params={
+                    'model_name': 'QoENet1d',
+                    'input_size': INPUT_SIZE,
+                    'output_size': OUTPUT_SIZE,
+                    'n_units': N_UNITS,
+                    'n_layers': N_LAYERS
+                },
+                n_folds=N_CV_FOLDS,
+                features=feats,
+                label=lbl,
+                cv_root_dir=cv_root_dir,
+                save_dir=save_dir,
+                nn_params={
+                    'batch_size': BATCH_SIZE,
+                    'val_prop': VAL_PROP,
+                    'epochs': EPOCHS,
+                    'loss_function': torch.nn.MSELoss,
+                    'learning_rate': LEARNING_RATE,
+                    'optimizer': torch.optim.Adam
+                },
+                log_file=log_fl
+            )
+
+        print(f'> The CV took total of {datetime.timedelta(seconds=time.time() - t_start)}')
 
 
 if __name__ == '__main__':
